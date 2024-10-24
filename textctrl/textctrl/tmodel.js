@@ -24,6 +24,11 @@ export class TModel{
         this._inp=_inp;
         this.TElementRegistry={'br':Br,'link_space':Link_space,'char':Char,'align':Align};
         this.debugging=false;
+        this.observe_attr=null;     //當內容被選取時，開始觀察，屬性變更結束後儲存
+        //------------------------------編輯歷史
+        this.history=[];
+        this.hindex=0;
+        this.update_history=true;
         //------------------------------------------------------選擇處理
         function render_selection(){
             let selecting=[Math.min(tmodel.selecting[0],tmodel.selecting[1]),Math.max(tmodel.selecting[0],tmodel.selecting[1])];
@@ -32,26 +37,6 @@ export class TModel{
                 let is_select=i>=selecting[0] && i<selecting[1];
                 telements[i].select(is_select);
             }
-        }
-        function get_selection(){
-            let selecting=tmodel.selecting;
-            let string='';
-            let telements_box=[];
-            let telements=tmodel.telements;
-            for(let i=0;i<telements.length;i++){
-                if(i>=selecting[0] && i<selecting[1]){
-                    let telement=telements[i];
-                    if (telement.type=='text')
-                        string+=telement.bdict['text'];
-                    telements_box.push(telement.ToString());
-                }
-            }
-            if(telements_box.length>0){
-                tcontrol.copy_string=string;
-                tcontrol.copy_telements=List_to_LString(telements_box);
-                
-            }
-            return string;
         }
         //--------------------------------------------------------------------------點擊事件
         this.mousepress=false;
@@ -99,9 +84,19 @@ export class TModel{
                 tmodel.index=index;
                 tmodel.show_inp();
                 inp_x=inp.offsetLeft;
-                if(tmodel.selecting[0]<tmodel.selecting[1])
+                if(tmodel.selecting[0]<tmodel.selecting[1]){
                     tcontrol.selectionbox.show(event.pageX,event.pageY);
-                else tcontrol.selectionbox.hide();
+                    tmodel.observe_attr=[tmodel.selecting[0],tmodel.Copy_TmString(tmodel.selecting[0],tmodel.selecting[1])];
+                }
+                else if(tmodel.observe_attr!=null){
+                    let osr=tmodel.observe_attr;
+                    let TmString=tmodel.Copy_TmString(osr[0],osr[0]+LString_to_List(osr[1]).length);
+                    if(TmString!=osr[1]){
+                        tmodel.record_history('S',osr[0],osr[1],TmString);
+                    }
+                    tmodel.observe_attr=null;
+                    tcontrol.selectionbox.hide();
+                }
                 tcontrol.focuslock=false;
             }//else tcontrol.selectionbox.hide();
             tmodel.mousepress=false;
@@ -113,26 +108,27 @@ export class TModel{
         element_obj.ondblclick=function (event){
             //event.stopPropagation();
             if(tcontrol.tmodel==tmodel){
-                let telement=tmodel.mousetap(event,undefined,true);
+                let ord_te=tmodel.mousetap(event,undefined,true);
+                let index=ord_te[0];let telement=ord_te[1];
                 if (!(typeof telement=='number')){
+                    tmodel.observe_attr=[index,tmodel.Copy_TmString(index,index+1)];
                     tcontrol.resizer.resize(telement);
                 }
                 tmodel.mousepress=false;
             }
         }
         element_obj.addEventListener('contextmenu', function(event) {
+            tcontrol.selectionbox.hide();
             event.preventDefault();
             let cm=tcontrol.customMenu;
             event.stopPropagation();
             let tap_selected=tmodel.mousetap(event,true);
             if(tap_selected!='yes'){
-                cm.customMenu.style.visibility= 'visible';
-                cm.customMenu.style.left = `${event.clientX}px`;
-                cm.customMenu.style.top = `${event.clientY}px`;
+                cm.show('insert',event);
+                tmodel.index=tmodel.mousetap(event);
+                tmodel.show_inp();
             }else{
-                cm.customMenu2.style.visibility= 'visible';
-                cm.customMenu2.style.left = `${event.clientX}px`;
-                cm.customMenu2.style.top = `${event.clientY}px`;
+                cm.show('revise',event);
                 cm.selecting=[tmodel.selecting[0],tmodel.selecting[1]];
             }
         });
@@ -152,35 +148,31 @@ export class TModel{
             event.stopPropagation();
             event.preventDefault();          // 阻止默認的貼上行為
             const pastedData = (event.clipboardData || window.clipboardData).getData('text');
-            if(pastedData==tcontrol.copy_string){
-                console.log('符合');
-                tmodel.Insert_TmString(tcontrol.copy_telements);
-            }else{
-                tmodel.input(pastedData);
-            }
+            tmodel.paste(pastedData);
         });
         let shift_key=false;
         inp.addEventListener('keydown',function(event){
             event.stopPropagation();
             tcontrol.selectionbox.hide();
+            shift_key=event.shiftKey;
             if (event.ctrlKey) {
                 if(tmodel.selecting[0]!=tmodel.selecting[1]){
                     if(event.code=='KeyC'){
-                        navigator.clipboard.writeText(get_selection());
+                        tmodel.copy();
                     }else if(event.code=='KeyX'){
-                        navigator.clipboard.writeText(get_selection());
-                        tmodel.delete(tmodel.selecting[0],tmodel.selecting[1]);
-                        tmodel.selecting[0]=tmodel.selecting[1];
-                        tmodel.show_inp();
+                        this.selecting[0]=this.selecting[1];
+                        tmodel.cut();
                     }
                 }
                 if(event.code=='KeyA'){
                     tmodel.index=tmodel.telements.length;
                     tmodel.selecting=[0,tmodel.index];
                     render_selection();
+                }else if(event.code=='KeyZ'){
+                    if(shift_key) tmodel.forward();
+                    else tmodel.back();
                 }
             }
-            shift_key=event.shiftKey;
             if(event.isComposing){
                 if(event.code=='ArrowLeft'){       //按下左鍵
                     let tem_html=_inp.innerHTML;
@@ -288,7 +280,7 @@ export class TModel{
             event.stopPropagation();
             shift_key=false;
             if(keypress){
-                if (!event.isComposing) { //event.code == 'Enter' || 
+                if (!event.isComposing && this.value!='') { //event.code == 'Enter' || 
                     tmodel.input(this.value);
                     this.value='';
                     _inp.innerHTML='';
@@ -307,6 +299,14 @@ export class TModel{
         }
     }
     unfocus(){
+        if(this.observe_attr!=null){
+            let osr=this.observe_attr;
+            let TmString=this.Copy_TmString(osr[0],osr[0]+LString_to_List(osr[1]).length);
+            if(TmString!=osr[1]){
+                this.record_history('S',osr[0],osr[1],TmString);
+            }
+            this.observe_attr=null;
+        }
         for(let i=0;i<this.telements.length;i++) this.telements[i].select(false);
     }
     mousetap(event,is_selected=false,get_telement=false){
@@ -337,7 +337,7 @@ export class TModel{
             if(y>=rect[1] && y<rect[1]+rect[3]){     //代表y符合
                 if(x>=rect[0] && x<rect[0]+rect[2]){     //代表x符合
                     if(get_telement)
-                        return telement;
+                        return [i,telement];
                     if(is_selected && i>=this.selecting[0] && i<this.selecting[1])
                         return 'yes';
                     if(x>rect[0]+rect[2]/2)
@@ -398,24 +398,19 @@ export class TModel{
             this.displayer.removeChild(this._inp);
     }
     change_line(){
+        this.update_history=false;
         this.insert_telement(new Br(this));
         let build_dict=copy_dict(this.text_dict);
         build_dict['fontSize']=this.inherit_text_dict()['fontSize'];
         this.insert_telement(new Link_space(this,build_dict));
+        this.record_history('A',this.index-2,this.index);
+        this.update_history=true;
     }
     inherit_dict(dtype,index=null){
         if(index==null)
             index=this.index;
-        if (index>0){
-            let k=index-1;
-            while (k>-1){
-                let _bdict=this.telements[k].get_dict();
-                if(this.telements[k].type==dtype){
-                    return _bdict;
-                }
-                k--;
-            }
-        }
+        let i=this.find_telement(dtype);
+        if(-1<i && i<this.telements.length) return this.telements[i].get_dict();
         return null;
     }
     inherit_text_dict(index=null){
@@ -423,15 +418,19 @@ export class TModel{
         if(bdict!=null) return bdict;
         return this.text_dict;
     }
+    find_telement(tetype,direct=-1,index=null){
+        if(index==null) index=this.index;
+        let k=this.index;
+        while (-1<k && k<this.telements.length){
+            if(this.telements[k].type==tetype)
+                return k;
+            k+=direct;
+        }
+        return k;
+    }
     update_align(){
         let line_width=this.displayer.offsetWidth-this.padding[0]*2;
-        let l=Math.max(this.index-1,0);
-        //-------------------------------------------------定位到最左邊
-        while (l>0){
-            if (this.telements[l].type=='link_space')
-                break;
-            l--;
-        }
+        let l=this.find_telement('link_space',-1,this.index-1)+1;
         let w=0;              //目前累積寬度
         while (l<this.telements.length){
             let telement=this.telements[l];
@@ -483,6 +482,16 @@ export class TModel{
         }
 
     }
+    record_history(htype='A',index=null,index2=null,TmString=null){
+        if(index==null) index=this.index;
+        if(index2==null) index2=index+1;
+        if(this.history.length>this.hindex)     //要一樣才是標準
+            this.history.splice(this.hindex,this.history.length-this.hindex);
+        if(htype=='S') this.history.push([htype,index,index2,TmString]);
+        else this.history.push([htype,index,this.Copy_TmString(index,index2)]);
+        this.hindex++;
+        this.update_history=true;
+    }
     //------------------------------------------------------------------外部語法糖
     delete(index=null,index2=null){
         if(index==null) index=this.index;
@@ -490,6 +499,10 @@ export class TModel{
         if(index>=index2) return false;
         //------------------------------------------------開始刪除
         this.remove_inp();
+        if(index>0 && this.telements[index-1].type=='br') index--;
+        if(index<this.telements.length && this.telements[index].type=='link_space') index2++;
+        if(this.update_history)
+            this.record_history('D',index,index2);
         if(-1<index && index<this.telements.length){
             let times=index2-index;
             this.telements.splice(index,times);
@@ -499,26 +512,37 @@ export class TModel{
             this.selecting[1]=this.selecting[0];
         }
         //-------------------------------------------------檢查br和link_space
-        if(index>0 && this.telements[index-1].type=='br')
-            this.delete(index-1);
-        if(index<this.telements.length && this.telements[index].type=='link_space')
-            this.delete(index);
         this.index=index;
         this.update_align();
         return true;
     }
     set_align(align){
+        this.update_history=false;
+        let l=this.find_telement('link_space',-1,this.index-1)+1;
+        let r=this.find_telement('br',1,this.index);
+        let TmString=this.Copy_TmString(l,r);
         this.insert_telement(new Align(this,{'align':align}));
+        r=this.find_telement('br',1,this.index);
+        this.record_history('S',l,TmString,this.Copy_TmString(l,r));
+        this.update_history=true;
     }
     set_attr(mdict){
         let selecting=this.selecting;
         this.remove_inp();
+        //let TmString=null
+        //if(this.update_history) TmString=this.Copy_TmString(selecting[0],selecting[1]);
         for(let i=selecting[0];i<selecting[1];i++){
             let telement=this.telements[i];
             telement.update(mdict);
         }
+        //if(this.update_history){
+        //    this.history.push(['S',selecting[0],TmString,this.Copy_TmString(selecting[0],selecting[1])]);
+        //    this.hindex++;
+        //}
     }
-    insert_telement(_telement,by_dict=false){
+    //---------------------------------------------------------------輸入
+    insert_telement(_telement,by_dict=false,index=null,update_history=true){
+        if(index!=null) this.index=index;
         if(_telement==null) return;        //通常會發生在該元素無法複製，返回空值
         if (by_dict){       //如果是字典，就自動轉換
             if(_telement['type']==undefined) return;    //代表是空字典
@@ -542,18 +566,22 @@ export class TModel{
             }
             function remove_right(align){
                 let k=tmodel.index;
+                console.log('刪除右方'+align);
                 while (k<tmodel.telements.length){
                     let telement=tmodel.telements[k];
                     if (telement.type=='br')
                         break;
                     if(telement.type=='align' && telement.bdict['align']==align){
+                        console.log('移除'+k);
                         tmodel.delete(k);
                     }else k++;
                 }
             }
+            let tem_index=this.index;   //防止刪除後原指標移位;
             if(align=='left'){remove_left('center');remove_left('right');remove_left('left');
             }else if(align=='center'){remove_left('right');remove_left('center');remove_right('left');remove_right('center');
             }else if(align=='right'){remove_right('center');remove_right('right');remove_right('left');}
+            this.index=tem_index;
         }
         this.telements.splice(this.index, 0,_telement);
         let all_chars=this.displayer.children;
@@ -567,10 +595,24 @@ export class TModel{
         _telement.update();
         if(this.debugging) _telement.debug();
         this.update_align();
+        //更新歷史
+        if(update_history && this.update_history)
+            this.record_history('A',this.index);
+            
         this.index++;
     }
+    insert_telements(_telements,by_dict=false,index=null){    //大量輸入
+        if(index!=null) this.index=index;
+        index=this.index;
+        for(let i=0;i<_telements.length;i++)
+            this.insert_telement(_telements[i],by_dict,null,false);
+        if(this.update_history) this.record_history('A',index,index+_telements.length);
+    }
     input(text_string,mdict=null){
+        this.update_history=false;
+        let index=this.index;
         this.input_funcs[this.input_mode].call(this,text_string,mdict);
+        this.record_history('A',index,this.index);
     }
     insert_chars(chars,mdict=null){
         let bdict=copy_dict(this.inherit_text_dict());
@@ -586,21 +628,108 @@ export class TModel{
             }
         }
     }
-    ToString(){
+    //--------------------------------------------------------------------------------------------儲存與載入
+    copy(range=null){
+        if(range==null) range=this.selecting;
+        let stringlist=[];
+        let telements=this.telements;
+        for(let i=range[0];i<range[1];i++){
+            let telement=telements[i];
+            if (telement.type=='text')
+                stringlist.push(telement.bdict['text']);
+        }
+        let string=stringlist.join('');
+        if(range[1]-range[0]>0){
+            this.tcontrol.copy_string=string;
+            this.tcontrol.copy_tmstring=this.Copy_TmString(range[0],range[1]);   
+        }
+        navigator.clipboard.writeText(string);
+        return string;
+    }
+    paste(pastedData=null,index=null){
+        if(pastedData==null) pastedData=this.tcontrol.copy_string;
+        if(index!=null) this.index=index;
+        if(pastedData==this.tcontrol.copy_string){
+            console.log('符合');
+            this.Insert_TmString(this.tcontrol.copy_tmstring);
+        }else{
+            this.input(pastedData);
+        }
+        this.show_inp();
+    }
+    cut(range=null){
+        if(range==null) range=this.selecting;
+        this.copy(range);
+        this.delete(range[0],range[1]);
+        this.show_inp();
+    }
+    //--------------------------------------------------------------------------------------------儲存與載入
+    Copy_TmString(index=null,index2=null){               //複製某段落的物件字串
+        if(index==null) index=this.index;
+        if(index2==null) index2=index+1;
         let box=[];
-        for(let i=0;i<this.telements.length;i++){
+        for(let i=index;i<index2;i++){
             box.push(this.telements[i].ToString());
         }
         return List_to_LString(box);
     }
-    Insert_TmString(TmString){
-        let box=LString_to_List(TmString);
-        for(let i=0;i<box.length;i++){
-            this.insert_telement(TeString_to_bdict(box[i]),true);
-        }
+    ToString(){                              //將內容轉為物件字串
+        return this.Copy_TmString(0,this.telements.length);
     }
-    LoadString(TmString){
+    Insert_TmString(TmString,index=null){                //插入物件字串
+        if(index==null) index=this.index;
+        let box=LString_to_List(TmString);
+        let _telements=[];
+        for(let i=0;i<box.length;i++){
+            _telements.push(TeString_to_bdict(box[i]));
+        }
+        this.insert_telements(_telements,true,index);
+    }
+    LoadString(TmString){                    //載入物件字串
         this.delete(0,this.telements.length);     //刪除全部
         this.Insert_TmString(TmString);
+    }
+    back(){
+        this.update_history=false;
+//        console.log(this.history)
+        if(this.hindex>0){
+            this.hindex--;
+            let action=this.history[this.hindex];
+            switch(action[0]){
+                case 'A':
+                    this.delete(action[1],action[1]+LString_to_List(action[2]).length);
+                    break;
+                case 'D':
+                    this.Insert_TmString(action[2],action[1]);
+                    break;
+                case 'S':
+                    this.delete(action[1],action[1]+LString_to_List(action[3]).length);
+                    this.Insert_TmString(action[2],action[1]);
+                    break;
+            }
+            this.show_inp();
+        }
+        this.update_history=true;
+    }
+    forward(){
+        this.update_history=false;
+        if(this.hindex<this.history.length){
+            let action=this.history[this.hindex];
+            switch(action[0]){
+                case 'A':
+                    this.Insert_TmString(action[2],action[1]);
+                    break;
+                case 'D':
+                    this.delete(action[1],action[1]+LString_to_List(action[2]).length);
+                    break;
+                case 'S':
+                    this.delete(action[1],action[1]+LString_to_List(action[2]).length);
+                    this.Insert_TmString(action[3],action[1]);
+                    break;
+            }
+            this.hindex++;
+            this.show_inp();
+        }
+        this.update_history=true;
     }
 }

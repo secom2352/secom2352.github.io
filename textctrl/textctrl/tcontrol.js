@@ -9,7 +9,7 @@ export class TControl{
         this.element_obj=element_obj;
         this.reset(new model_class(this,this.element_obj));
         //--------------------------------------被複製的物件
-        this.copy_telements=[];
+        this.copy_tmstring='';
         this.copy_string='';
         this.zoom_rate=1;
         //--------------------------------------

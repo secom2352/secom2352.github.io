@@ -103,7 +103,12 @@ TModel(tcontrol,element_obj,unit=30)      #unit為 char 的字型基礎大小(px
             'input'
             'keyup'
     ._inp                                 #顯示.inp輸入的內容，並被insert進.displayer.children中佔空間
+
+    .observer_attr                        #觀察屬性變更，在觀察結束後作為歷史紀錄
     -----------------------------------------------------------------------#以上都在constructor
+    .debug()                              #進入偵錯模式，所有元素有外框包裹
+    .unfocus()                            #當自身從focus狀態退出時要做的動作
+
     .mousetap(event)                      #將event轉為相對座標再tap
     .tap(x,y)                             #點擊到哪個元素?點擊後index在哪?
     .show_inp()                           #顯示閃爍輸入
@@ -113,8 +118,10 @@ TModel(tcontrol,element_obj,unit=30)      #unit為 char 的字型基礎大小(px
 
     .inherit_dict(dtype,index=null)       #在index前搜尋某dtype屬性繼承
     .inherit_text_dict(index=null)        #繼承前一個text屬性
+    .find_telement(tetype,direct=-1)      #向某個方向尋找某型態的telement，返回找到的index，找不到則會返回超出範圍的index
 
     .update_align()                       #更新對齊位置
+    .record_history()                     #記錄歷史
     ------------------------------------------------------------------------#以下為外接語法
     .zoom(zoom)                            #改變unit，進行文字方塊縮放
     .delete(index=null,index2=null)        #刪除某單元或一個範圍
@@ -125,11 +132,13 @@ TModel(tcontrol,element_obj,unit=30)      #unit為 char 的字型基礎大小(px
     .insert_telement(Telement)             #插入某 telement 或其繼承者
     .insert_chars(chars,mdict)             #插入字元串
 
+    .copy(range=[r1,r2])                   #複製字串到剪貼簿，同時複製成TmString等待下次貼上
+    .Copy_TmString(index,index2)           #複製一個範圍成TmString
+    .ToString()                            #將 .telements 全部轉化為儲存字串(TmString)
+    .Insert_TmString(TmString,index=null)  #將TmString轉化為物件字串插入
+    .LoadString(json_string)               #載入之前轉化成的字串
     .back()                                #上一步
     .forward()                             #下一步
-
-    .ToString()                            #將 .telements 全部轉化為儲存字串(json)
-    .load(json_string)                     #載入之前轉化成的字串
 ------------------------------------------------------------------------------------------------extmodel.js  繼承tmodel，定義插入的其他元素
 ExTModel(tcontrol,element_obj)
     .insert_text(text_string,mdict=null)          #插入文字，mdict是除此之外要加入的屬性，文字會自動繼承先前屬性

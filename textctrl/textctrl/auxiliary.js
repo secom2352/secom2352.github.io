@@ -125,19 +125,22 @@ export class Resizer{
 export class CustomMenu{
     constructor(tcontrol){
         this.tcontrol=tcontrol;
-        let customMenu=HtmlElement('div',"position: absolute;visibility:hidden;background-color: #ffffff;border: 1px solid #ccc;box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.2);x: 1000;",'<ul style="list-style: none;padding: 0;margin: 0;"></ul>');
+        let customMenu1=HtmlElement('div',"position: absolute;visibility:hidden;background-color: #ffffff;border: 1px solid #ccc;box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.2);x: 1000;",'<ul style="list-style: none;padding: 0;margin: 0;"></ul>');
         add_css('.textctrlCM{padding: 10px 20px;cursor: pointer;background-color: white;}.textctrlCM:hover{ background-color:#e0e0e0; }');
         let cm=this;
-        customMenu.onclick=function (event){
+        customMenu1.onclick=function (event){
             cm.hide();
         }
-        this.add_btn(customMenu,'插入圖片',function (event){
+        this.add_btn(customMenu1,'貼上',function (event){
+            tcontrol.tmodel.paste();
+        });
+        this.add_btn(customMenu1,'插入圖片',function (event){
             let url = prompt("Enter image url", "https://allen2352.github.io/speed_test.jpg");
             if (url != null) {
                 tcontrol.tmodel.insert_image(url);
             }
         });
-        this.add_btn(customMenu,'插入連結',function (event){
+        this.add_btn(customMenu1,'插入連結',function (event){
             let url = prompt("Enter link url", "https://allen2352.github.io/speed_test.jpg");
             if (url != null) {
                 let link_name= prompt("Enter link name", "連結");
@@ -146,57 +149,41 @@ export class CustomMenu{
                 }
             }
         });
-        this.add_btn(customMenu,'插入表格',function (event){
+        this.add_btn(customMenu1,'插入表格',function (event){
             tcontrol.tmodel.insert_table(3,2);
         });
-        this.add_btn(customMenu,'插入html',function (event){
+        this.add_btn(customMenu1,'插入html',function (event){
             let html_code = prompt("Enter html", "<button>123</button>");
             if (html_code != null) {
                 tcontrol.tmodel.insert_html(html_code);
             }
         });
-        let inspect=false;
-        this.add_btn(customMenu,'檢查',function (event){
-            inspect=!inspect;
-        });
-        this.customMenu=customMenu;
-        document.body.appendChild(customMenu);
+        document.body.appendChild(customMenu1);
         let customMenu2=HtmlElement('div',"position: absolute;visibility:hidden;background-color: #ffffff;border: 1px solid #ccc;box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.2);x: 1000;",'<ul style="list-style: none;padding: 0;margin: 0;"></ul>');
         customMenu2.onclick=function (event){
             cm.hide();
         }
         this.add_btn(customMenu2,'複製',function (event){
-            
+            tcontrol.tmodel.copy(cm.selecting);
         });
         this.add_btn(customMenu2,'剪下',function (event){
-            
-        });
-        this.add_btn(customMenu2,'貼上',function (event){
-            
+            tcontrol.tmodel.cut(cm.selecting);
         });
         this.add_btn(customMenu2,'調整',function (event){
             let telement=tcontrol.tmodel.telements[tcontrol.tmodel.selecting[0]];
             tcontrol.resizer.resize(telement);
         });
-        this.customMenu2=customMenu2;
+        this.customMenu={'insert':customMenu1,'revise':customMenu2};
         document.body.appendChild(customMenu2);
-       // panel_element.addEventListener('contextmenu', function(event) {
-       //     event.stopPropagation();
-       //     let tap_selected=tmodel.tap(event.pageX-panel_element.offsetLeft-tmodel.padding[0],event.pageY-panel_element.offsetTop-tmodel.padding[1],true);
-       //     if(!inspect)
-       //         event.preventDefault();                      // 阻止瀏覽器的默認右鍵選單
-       //     if(tap_selected!='yes'){
-       //         customMenu.style.visibility= 'visible';
-       //         customMenu.style.left = `${event.pageX}px`;
-       //         customMenu.style.top = `${event.pageY}px`;
-       //     }else{
-       //         customMenu2.style.visibility= 'visible';
-       //         customMenu2.style.left = `${event.pageX}px`;
-       //         customMenu2.style.top = `${event.pageY}px`;
-       //         cm.selecting=[tmodel.selecting[0],tmodel.selecting[1]];
-       //     }
-       // });
 
+    }
+    show(name,event){
+        this.hide();
+        let customMenu=this.customMenu[name];
+        let pos=[event.pageX+3,event.pageY+3];
+        customMenu.style.visibility= 'visible';
+        customMenu.style.left = `${pos[0]}px`;
+        customMenu.style.top = `${pos[1]}px`;
     }
     onmousedown(event){
         
@@ -217,8 +204,8 @@ export class CustomMenu{
 
     }
     hide(){
-        this.customMenu.style.visibility= 'hidden';
-        this.customMenu2.style.visibility= 'hidden';
+        for(let [name, customMenu] of Object.entries(this.customMenu))
+            customMenu.style.visibility= 'hidden';
     }
 }
 export class SelectionBox{
