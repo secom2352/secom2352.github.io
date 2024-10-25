@@ -10,11 +10,12 @@ class EpCode extends TElement{
         this.type='text';
     }
     transformup(){
+        console.log('transform');
         let rect=this.get_rect();
         let unit=this.tmodel.ep_unit;
         let w=Math.min(Math.round(rect[2]*2/unit)/2,6);
         let h=Math.min(Math.round(rect[3]/unit),6);
-        if(!isASCII(this.bdict['epcode']))
+        if(!isASCII(this.bdict['text']))
             w=Math.round(w);
         this.transform('scale',[w*unit,h*4/3*unit]);
     }
