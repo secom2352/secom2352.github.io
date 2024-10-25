@@ -566,13 +566,11 @@ export class TModel{
             }
             function remove_right(align){
                 let k=tmodel.index;
-                console.log('刪除右方'+align);
                 while (k<tmodel.telements.length){
                     let telement=tmodel.telements[k];
                     if (telement.type=='br')
                         break;
                     if(telement.type=='align' && telement.bdict['align']==align){
-                        console.log('移除'+k);
                         tmodel.delete(k);
                     }else k++;
                 }
@@ -637,6 +635,8 @@ export class TModel{
             let telement=telements[i];
             if (telement.type=='text')
                 stringlist.push(telement.bdict['text']);
+            else if(telement.type=='br')
+                stringlist.push('\n')
         }
         let string=stringlist.join('');
         if(range[1]-range[0]>0){

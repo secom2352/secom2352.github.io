@@ -53,8 +53,15 @@ export class TControl{
         this.reset(tmodel);
     }
     //------------------------------------------------------
-    input_text(text_string,mdict=null){
-        this.tmodel.input(text_string,mdict);
+    input(dtype,data,...args){
+        switch(dtype){
+            case 'text':
+                this.tmodel.input(data,args[0]);
+                break;
+            case 'image':
+                this.tmodel.insert_image(data,args[0]);
+                break;
+        }
     }
     set_align(align){
         this.tmodel.set_align(align);

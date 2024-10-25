@@ -33,7 +33,7 @@ export class TElement{
         if(this.element==undefined) return;
         for(let [key, value] of Object.entries(ndict)){
             let set_textDecoration=false;
-            let update_key=true;
+            //let update_key=true;
             switch(key){
                 case 'scale':
                     let scale=value.split(',');
@@ -74,8 +74,9 @@ export class TElement{
                     this.element.style.backgroundColor=value;
                     if(this.overlay==null && value!='transparent') this.overlay=HtmlElement('div','position:absolute;background-color:#ADD8E6A0;top:0px;');;
                     break;
-                default:                   //不是需要的key就跳過不設定
-                    update_key=false;
+                //強制修改
+                    //default:                   //不是需要的key就跳過不設定
+                  //  update_key=false;
             }
             if (set_textDecoration){
                 let box=[];
@@ -87,8 +88,8 @@ export class TElement{
                     this.element.style.textDecoration='none';
                 else this.element.style.textDecoration=box.join(' ');
             }
-            if(update_key)
-                this.bdict[key]=value;
+            //if(update_key)
+            this.bdict[key]=value;
         }
     }
     select(is_select){

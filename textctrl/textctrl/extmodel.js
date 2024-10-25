@@ -9,8 +9,10 @@ export class ExTModel extends TModel{
     insert_text(text_string,mdict=null){          //插入文字，mdict是除此之外要加入的屬性，文字會自動繼承先前屬性
         this.insert_telement(new Text(this,{'text':text_string}));
     }
-    insert_image(src,width=null,height=null){         //插入圖片
-        let img=new Image(this,{'src':src});
+    insert_image(src,mdict=null){         //插入圖片
+        let bdict={'src':src};
+        if(mdict!=null) Object.assign(bdict,mdict)
+        let img=new Image(this,bdict);
         this.insert_telement(img);
         //let rect=img.get_rect();
         //if(width!=null || height!=null){

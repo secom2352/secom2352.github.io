@@ -38,12 +38,10 @@ nav.add_dropdown('檔案',[
         }],
     ],100);
 function insert_var(key,name){
-    let build_dict={'color':'red',
-                    'bgcolor':'yellow',
-                    'key':key
-    };
+    let mdict={'color':'red','bgcolor':'yellow','key':key};
+    tctrl.input('text',key+'',mdict);
     //tctrl.insert_message(name,build_dict);
-    tctrl.insert_eps(key+'',{'var':key,'color':'red','bgcolor':'yellow'})
+    //tctrl.insert_eps(key+'',{'var':key,'color':'red','bgcolor':'yellow'})
 }
 function insert_var_image(key,src,w,h){
     let bdict={
@@ -105,7 +103,7 @@ nav.add_dropdown('格式匯出&ensp;&ensp;',[
   //      tctrl.set_align('left');
     //}],
     ['中間指令',function (event){
-        let code=tctrl.to_eps_middle();
+        let code=tctrl.tmodel.to_eps_middle();
         navigator.clipboard.writeText(code);
         alert('已複製');
     }],
@@ -138,7 +136,7 @@ let test_string=`HYBRID GROUP TEST
 機:
 `;
 //tctrl.insert_text('測');
-tctrl.input_text(test_string);
+tctrl.input('text',test_string);
 //tctrl.index=10;
 //tctrl.insert_image('https://www.w3schools.com/cssref/pineapple.jpg');
 //tctrl.insert_image('image/image-not-found.png');
