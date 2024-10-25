@@ -1,6 +1,6 @@
-import {html_to_pdf,html_to_png} from './document.js';
+import {html_to_pdf,html_to_png} from './document/document.js';
 import {tctrl} from './tcontrol.js';
-import { NavBar} from './widget.js';
+import { NavBar} from './widget/widget.js';
 import { isASCII } from './tool.js';
 
 document.body.style="background-color:#555555;";
@@ -37,7 +37,14 @@ nav.add_dropdown('檔案',[
             URL.revokeObjectURL(url);
         }],
     ],100);
-function insert_var(key,name){
+var now_var=0;
+function insert_var(key=null){
+    if(key==null){
+        key=now_var;
+        now_var++;
+    }else{
+        now_var=Math.max(now_var,key+1);
+    }
     let mdict={'color':'red','bgcolor':'yellow','key':key};
     tctrl.input('text',key+'',mdict);
     //tctrl.insert_message(name,build_dict);
@@ -53,23 +60,33 @@ function insert_var_image(key,src,w,h){
     tctrl.insert_telement(bdict);
     //tctrl.insert_text(key,{'var':key})
 }
+//nav.add_dropdown('插入變數',[
+//    ['特店編號',function (event){insert_var(0,'特店編號')}],
+//    ['特店統編',function (event){insert_var(1,'特店統編')}],
+//    'hr',
+//    ['交易金額',function (event){insert_var(2,'交易金額')}],
+//    ['交易折抵',function (event){insert_var(3,'交易折抵')}],
+//    ['支付方式',function (event){insert_var(4,'支付方式')}],
+//    'hr',
+//    ['交易時間',function (event){insert_var(5,'交易時間')}],
+//    ['訂單編號',function (event){insert_var(6,'訂單編號')}],
+//    ['機台編號',function (event){insert_var(7,'機台編號')}],
+//    'hr',
+//    ['插入條碼',function (event){insert_var_image(8,'image/barcode.png',360,139)}],
+//    ['插入QR碼',function (event){insert_var_image(9,'image/hello_world.png',200,200)}],
+//    'hr',
+//    ['自訂變數',function (event){insert_var(10,'自訂變數')}],
+//]);
+function specify_variable(){
+    let variable= prompt("Enter variable");
+    if (variable != null){
+        insert_var(variable);
+    }
+}
 nav.add_dropdown('插入變數',[
-    ['特店編號',function (event){insert_var(0,'特店編號')}],
-    ['特店統編',function (event){insert_var(1,'特店統編')}],
-    'hr',
-    ['交易金額',function (event){insert_var(2,'交易金額')}],
-    ['交易折抵',function (event){insert_var(3,'交易折抵')}],
-    ['支付方式',function (event){insert_var(4,'支付方式')}],
-    'hr',
-    ['交易時間',function (event){insert_var(5,'交易時間')}],
-    ['訂單編號',function (event){insert_var(6,'訂單編號')}],
-    ['機台編號',function (event){insert_var(7,'機台編號')}],
-    'hr',
-    ['插入條碼',function (event){insert_var_image(8,'image/barcode.png',360,139)}],
-    ['插入QR碼',function (event){insert_var_image(9,'image/hello_world.png',200,200)}],
-    'hr',
-    ['自訂變數',function (event){insert_var(10,'自訂變數')}],
-]);
+    ['插入變數',function (event){insert_var()}],
+    ['指定變數',function (event){specify_variable()}],
+])
 function svg(class_name){
     let item={'paragraph':`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-text-paragraph" viewBox="0 0 16 16">
                     <path fill-rule="evenodd" d="M2 12.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m4-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5"/>
