@@ -1,7 +1,6 @@
 import {html_to_pdf,html_to_png} from './document/document.js';
 import {tctrl} from './tcontrol.js';
 import { NavBar} from './widget/widget.js';
-import { isASCII } from './tool.js';
 
 document.body.style="background-color:#555555;";
 
@@ -45,8 +44,8 @@ function insert_var(key=null){
     }else{
         now_var=Math.max(now_var,key+1);
     }
-    let mdict={'color':'red','bgcolor':'yellow','key':key};
-    tctrl.input('text',key+'',mdict);
+    let mdict={'color':'red','bgcolor':'yellow','key':key,'fontFamily':"新細明體"};
+    tctrl.tmodel.insert_textgroup(key+'',mdict);
     //tctrl.insert_message(name,build_dict);
     //tctrl.insert_eps(key+'',{'var':key,'color':'red','bgcolor':'yellow'})
 }
@@ -80,7 +79,7 @@ function insert_var_image(key,src,w,h){
 function specify_variable(){
     let variable= prompt("Enter variable");
     if (variable != null){
-        insert_var(variable);
+        insert_var(parseInt(variable));
     }
 }
 nav.add_dropdown('插入變數',[

@@ -1,5 +1,5 @@
 import { HtmlElement,convert_string,isASCII,copy_dict, TeString_to_bdict,LString_to_List,List_to_LString} from "./tool.js";
-import { TElement,Br,Link_space,Char,Align} from "./telement.js";
+import { TElement,Br,Link_space,Char,Align,TextGroup,Image,Link,Table,Html} from "./telement.js";
 
 export class TModel{
     constructor(tcontrol,element_obj){
@@ -22,7 +22,10 @@ export class TModel{
         let _inp=HtmlElement('span',"color:black;display:inline-block;");
         this.inp=inp;
         this._inp=_inp;
-        this.TElementRegistry={'br':Br,'link_space':Link_space,'char':Char,'align':Align};
+        this.TElementRegistry={
+            'br':Br,'link_space':Link_space,'char':Char,'align':Align,
+            'textgroup':TextGroup,'image':Image,'link':Link,'table':Table,'html':Html
+        };
         this.debugging=false;
         this.observe_attr=null;     //當內容被選取時，開始觀察，屬性變更結束後儲存
         //------------------------------編輯歷史
@@ -160,8 +163,8 @@ export class TModel{
                     if(event.code=='KeyC'){
                         tmodel.copy();
                     }else if(event.code=='KeyX'){
-                        this.selecting[0]=this.selecting[1];
                         tmodel.cut();
+                        tmodel.selecting[0]=tmodel.selecting[1];
                     }
                 }
                 if(event.code=='KeyA'){
@@ -541,12 +544,15 @@ export class TModel{
         //}
     }
     //---------------------------------------------------------------輸入
-    insert_telement(_telement,by_dict=false,index=null,update_history=true){
+    insert_telement(_telement,mdict=null,index=null,update_history=true){
         if(index!=null) this.index=index;
-        if(_telement==null) return;        //通常會發生在該元素無法複製，返回空值
-        if (by_dict){       //如果是字典，就自動轉換
-            if(_telement['type']==undefined) return;    //代表是空字典
-            _telement=new this.TElementRegistry[_telement['type']](this,_telement);
+        if(_telement==null){
+            if(mdict==null) return;        //通常會發生在該元素無法複製，返回空值
+            console.log(mdict);
+            if(mdict['type']==undefined) return;    //代表是空字典
+            _telement=new this.TElementRegistry[mdict['type']](this,mdict);
+        }else if (mdict!=null){
+            Object.assign(_telement.bdict,mdict);
         }
         if(_telement.type=='align'){
             let align=_telement.bdict['align'];
@@ -602,8 +608,13 @@ export class TModel{
     insert_telements(_telements,by_dict=false,index=null){    //大量輸入
         if(index!=null) this.index=index;
         index=this.index;
-        for(let i=0;i<_telements.length;i++)
-            this.insert_telement(_telements[i],by_dict,null,false);
+        if(by_dict){
+            for(let i=0;i<_telements.length;i++)
+                this.insert_telement(null,_telements[i],null,false);
+        }else{
+            for(let i=0;i<_telements.length;i++)
+                this.insert_telement(_telements[i],null,null,false);
+        }
         if(this.update_history) this.record_history('A',index,index+_telements.length);
     }
     input(text_string,mdict=null){
@@ -625,6 +636,24 @@ export class TModel{
                 this.insert_telement(new Char(this,build_dict));
             }
         }
+    }
+    insert_textgroup(text_string,mdict=null){          //插入文字，mdict是除此之外要加入的屬性，文字會自動繼承先前屬性
+        let bdict=copy_dict(this.inherit_text_dict());
+        if(mdict!=null) Object.assign(bdict,mdict);
+        bdict['text']=text_string;
+        this.insert_telement(new TextGroup(this,bdict));
+    }
+    insert_image(src,mdict=null){         //插入圖片
+        this.insert_telement(new Image(this,{'src':src}),mdict);
+    }
+    insert_link(href,name){                      //插入連結
+        this.insert_telement(new Link(this,{'text':name,'href':href}));
+    } 
+    insert_table(row,col){                         //插入表格
+        this.insert_telement(new Table(this,{'ranks':`${row},${col}`}));
+    }
+    insert_html(html){                       //插入html
+        this.insert_telement(new Html(this,{'html':html}));
     }
     //--------------------------------------------------------------------------------------------儲存與載入
     copy(range=null){

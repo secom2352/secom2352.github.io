@@ -1,5 +1,5 @@
 import { TElement } from "./telement.js";
-import { ExTModel } from "./extmodel.js";
+import { TModel } from "./tmodel.js";
 import { isASCII,copy_dict,convert_c} from "./tool.js";
 
 class EpCode extends TElement{
@@ -21,7 +21,7 @@ class EpCode extends TElement{
 }
 
 
-export class CTModel extends ExTModel{
+export class CTModel extends TModel{
     constructor(tcontrol,element_obj){
         super(tcontrol,element_obj);
         Object.assign(this.TElementRegistry,{'epcode':EpCode});
@@ -79,7 +79,12 @@ export class CTModel extends ExTModel{
             //}else
             //bottom=bottom2;
             let _dict=telement.get_dict();
-            if(_dict['type']=='epcode'){
+            if(_dict['key']!=undefined){
+                let rect=telement.get_rect();
+                let w=Math.round(rect[2]*2/unit/_dict['text'].length)/2;
+                let h=Math.round(rect[3]*0.75/unit);
+                code_box.push('k'+Math.round(w*2)+','+h+','+_dict['key']+' ');
+            }else if(_dict['type']=='epcode'){
                 let rect=telement.get_rect();
                 let w=Math.round(rect[2]*2/unit)/2;
                 let h=Math.round(rect[3]*0.75/unit);
