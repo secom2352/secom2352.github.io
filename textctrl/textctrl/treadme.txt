@@ -40,32 +40,37 @@ TElement(build_dict)                      #基底通用型態
 以下繼承TElement
 Br                                        #換行物件
     .bdict={
-        
+       'type':'br'
     }
 Line_space                                #行距
     .bdict={
-        
+        'type':'line_space'
     }
 Char                                      #一般字元
     .bdict={
-       'char':'x'
+       'type':'char'
+       'text':'c'
     }
-------------------------------------------------------------------------extelement.js   繼承 TElement，自定義元素並擴充
-Text
+    .type='text'
+TextGroup
     .bdict={
         'text':'.....'
     }
+    .type='text'
 Image
     .bdict={
+        'type'='image'
         'src':'.....'
     }
 Link
     .bdict={
+        'type'='link'
         'text':'.....'
         'href':'.....'
     }
 Table
     .bdict={
+        'type'='table'
         'ranks':'r,c'
     }
 Html                                      #任意html物件

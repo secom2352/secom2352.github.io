@@ -140,7 +140,7 @@ export class CustomMenu{
                 tcontrol.tmodel.insert_image(url);
             }
         });
-        this.add_btn(customMenu1,'插入連結',function (event){
+        /*this.add_btn(customMenu1,'插入連結',function (event){
             let url = prompt("Enter link url", "https://allen2352.github.io/speed_test.jpg");
             if (url != null) {
                 let link_name= prompt("Enter link name", "連結");
@@ -148,9 +148,18 @@ export class CustomMenu{
                     tcontrol.tmodel.insert_link(url,link_name);
                 }
             }
+        });*/
+        this.add_btn(customMenu1,'文字方塊',function (event){
+            tcontrol.tmodel.insert_table(1,1);
         });
         this.add_btn(customMenu1,'插入表格',function (event){
-            tcontrol.tmodel.insert_table(3,2);
+            let col = prompt("行數", "2");
+            if (col != null) {
+                let row= prompt("列數", "2");
+                if (row != null) {
+                    tcontrol.tmodel.insert_table(parseInt(row),parseInt(col));
+                }
+            }
         });
         this.add_btn(customMenu1,'插入html',function (event){
             let html_code = prompt("Enter html", "<button>123</button>");
@@ -169,7 +178,7 @@ export class CustomMenu{
         this.add_btn(customMenu2,'剪下',function (event){
             tcontrol.tmodel.cut(cm.selecting);
         });
-        this.add_btn(customMenu2,'調整',function (event){
+        this.add_btn(customMenu2,'屬性',function (event){
             let telement=tcontrol.tmodel.telements[tcontrol.tmodel.selecting[0]];
             tcontrol.resizer.resize(telement);
         });

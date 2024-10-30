@@ -5,8 +5,11 @@ import { NavBar} from './widget/widget.js';
 document.body.style="background-color:#555555;";
 
 let nav=new NavBar();
-nav.add_item('發票排版',function (event){},25);
+//nav.add_item('發票排版',function (event){},25);
 nav.add_dropdown('檔案',[
+        ['開新檔案',function (event){
+            tctrl.clear();
+        }],
         ['開啟存檔',function (event){
             let file=document.createElement('input');
             file.type='file';
@@ -45,18 +48,20 @@ function insert_var(key=null){
         now_var=Math.max(now_var,key+1);
     }
     let mdict={'color':'red','bgcolor':'yellow','key':key,'fontFamily':"新細明體"};
-    tctrl.tmodel.insert_textgroup(key+'',mdict);
+    tctrl.tmodel.insert_variable(key+'',mdict);
     //tctrl.insert_message(name,build_dict);
     //tctrl.insert_eps(key+'',{'var':key,'color':'red','bgcolor':'yellow'})
 }
-function insert_var_image(key,src,w,h){
+function insert_var_image(src,w,h,dtype){
     let bdict={
-        'type':'image',
+        'type':'varimage',
         'src':src,
         'scale':w+','+h,
-        'var':key
+        'key':now_var,
+        'dtype':dtype
     }
-    tctrl.insert_telement(bdict);
+    now_var++;
+    tctrl.tmodel.insert_varimage(bdict);
     //tctrl.insert_text(key,{'var':key})
 }
 //nav.add_dropdown('插入變數',[
@@ -76,6 +81,11 @@ function insert_var_image(key,src,w,h){
 //    'hr',
 //    ['自訂變數',function (event){insert_var(10,'自訂變數')}],
 //]);
+nav.add_dropdown('系統變數',[
+    ['時間',function (event){insert_var()}],
+    ['條碼',function (event){insert_var_image('image/barcode.png',172,70,'barcode')}],
+    ['QR code',function (event){insert_var_image('image/hello_world.png',200,200,'QR code')}],
+]);
 function specify_variable(){
     let variable= prompt("Enter variable");
     if (variable != null){
@@ -85,7 +95,7 @@ function specify_variable(){
 nav.add_dropdown('插入變數',[
     ['插入變數',function (event){insert_var()}],
     ['指定變數',function (event){specify_variable()}],
-])
+]);
 function svg(class_name){
     let item={'paragraph':`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-text-paragraph" viewBox="0 0 16 16">
                     <path fill-rule="evenodd" d="M2 12.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m4-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5"/>
@@ -119,7 +129,7 @@ nav.add_dropdown('格式匯出&ensp;&ensp;',[
   //      tctrl.set_align('left');
     //}],
     ['中間指令',function (event){
-        let code=tctrl.tmodel.to_eps_middle();
+        let code=tctrl.mtmodel.to_eps_middle();
         navigator.clipboard.writeText(code);
         alert('已複製');
     }],

@@ -66,6 +66,9 @@ export class TControl{
     set_align(align){
         this.tmodel.set_align(align);
     }
+    clear(){
+        this.LoadString('');
+    }
 }
 let doc=document.getElementById('textctrl');
 //let tdoc=new TControl(doc,ExTModel);

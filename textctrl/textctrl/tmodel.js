@@ -1,5 +1,5 @@
 import { HtmlElement,convert_string,isASCII,copy_dict, TeString_to_bdict,LString_to_List,List_to_LString} from "./tool.js";
-import { TElement,Br,Link_space,Char,Align,TextGroup,Image,Link,Table,Html} from "./telement.js";
+import { TElement,Br,Line_space,Char,Align,TextGroup,Image,Link,Table,Html} from "./telement.js";
 
 export class TModel{
     constructor(tcontrol,element_obj){
@@ -23,7 +23,7 @@ export class TModel{
         this.inp=inp;
         this._inp=_inp;
         this.TElementRegistry={
-            'br':Br,'link_space':Link_space,'char':Char,'align':Align,
+            'br':Br,'line_space':Line_space,'link_space':Line_space,'char':Char,'align':Align,
             'textgroup':TextGroup,'image':Image,'link':Link,'table':Table,'html':Html
         };
         this.debugging=false;
@@ -227,11 +227,14 @@ export class TModel{
                     let change_inp_x=true;
                     if(event.code=='ArrowLeft' && tmodel.index>0){
                         tmodel.index--;
-                        if(tmodel.telements[tmodel.index].type=='link_space')
-                            tmodel.index--;
+                        if(tmodel.telements[tmodel.index].type=='line_space'){
+                            if(tmodel.index>0)
+                                tmodel.index--;
+                            else tmodel.index++;
+                        }
                     }else if(event.code=='ArrowRight' && tmodel.index<tmodel.telements.length){
                         tmodel.index++;
-                        if(tmodel.telements[tmodel.index-1].type=='link_space')
+                        if(tmodel.telements[tmodel.index-1].type=='line_space')
                             tmodel.index++;
                     }else if(event.code=='ArrowUp'){
                         tmodel.index=tmodel.tap(inp_x,this.offsetTop-this.offsetHeight/2);
@@ -401,12 +404,14 @@ export class TModel{
             this.displayer.removeChild(this._inp);
     }
     change_line(){
-        this.update_history=false;
-        this.insert_telement(new Br(this));
         let build_dict=copy_dict(this.text_dict);
         build_dict['fontSize']=this.inherit_text_dict()['fontSize'];
-        this.insert_telement(new Link_space(this,build_dict));
-        this.record_history('A',this.index-2,this.index);
+        this.update_history=false;
+        let p=this.index;
+        if(p==0) this.insert_telement(new Line_space(this,build_dict));  //一行裡面不能甚麼都沒有
+        this.insert_telement(new Br(this));
+        this.insert_telement(new Line_space(this,build_dict));
+        this.record_history('A',p,this.index);
         this.update_history=true;
     }
     inherit_dict(dtype,index=null){
@@ -433,7 +438,7 @@ export class TModel{
     }
     update_align(){
         let line_width=this.displayer.offsetWidth-this.padding[0]*2;
-        let l=this.find_telement('link_space',-1,this.index-1)+1;
+        let l=this.find_telement('line_space',-1,this.index-1)+1;
         let w=0;              //目前累積寬度
         while (l<this.telements.length){
             let telement=this.telements[l];
@@ -503,7 +508,7 @@ export class TModel{
         //------------------------------------------------開始刪除
         this.remove_inp();
         if(index>0 && this.telements[index-1].type=='br') index--;
-        if(index<this.telements.length && this.telements[index].type=='link_space') index2++;
+        if(index<this.telements.length && this.telements[index].type=='line_space') index2++;
         if(this.update_history)
             this.record_history('D',index,index2);
         if(-1<index && index<this.telements.length){
@@ -514,14 +519,14 @@ export class TModel{
             }
             this.selecting[1]=this.selecting[0];
         }
-        //-------------------------------------------------檢查br和link_space
+        //-------------------------------------------------檢查br和line_space
         this.index=index;
         this.update_align();
         return true;
     }
     set_align(align){
         this.update_history=false;
-        let l=this.find_telement('link_space',-1,this.index-1)+1;
+        let l=this.find_telement('line_space',-1,this.index-1)+1;
         let r=this.find_telement('br',1,this.index);
         let TmString=this.Copy_TmString(l,r);
         this.insert_telement(new Align(this,{'align':align}));
@@ -548,8 +553,8 @@ export class TModel{
         if(index!=null) this.index=index;
         if(_telement==null){
             if(mdict==null) return;        //通常會發生在該元素無法複製，返回空值
-            console.log(mdict);
             if(mdict['type']==undefined) return;    //代表是空字典
+            //console.log('加入型態:'+mdict['type']);
             _telement=new this.TElementRegistry[mdict['type']](this,mdict);
         }else if (mdict!=null){
             Object.assign(_telement.bdict,mdict);
@@ -561,7 +566,7 @@ export class TModel{
                 let l=tmodel.index-1;
                 while (l>-1){
                     let telement=tmodel.telements[l];
-                    if (telement.type=='link_space')
+                    if (telement.type=='line_space')
                         break;
                     if(telement.type=='align' && telement.bdict['align']==align){
                         tmodel.delete(l);

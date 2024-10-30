@@ -180,15 +180,15 @@ export class Br extends TElement{                //-----------------------------
         super(tmodel,{'type':'br'},'','br');
     }
 }
-export class Link_space extends TElement{        //-------------------------------------行距
+export class Line_space extends TElement{        //-------------------------------------行距
     constructor(tmodel,bdict){
-        bdict['type']='link_space';
+        bdict['type']='line_space';
         super(tmodel,bdict,'<span>&ensp;</span>');
         this.container.style.width='0px';
     }
     get_rect(){
         let rect=super.get_rect();
-        return [0,rect[1],5,rect[3]];
+        return [0,rect[1],0,rect[3]];
     }
 }
 export class Char extends TElement{           //-----------------------------------------單個文字
@@ -223,10 +223,20 @@ export class Image extends TElement{           //----------------------一般圖
         bdict['type']='image';
         let innerHTML=`<span><img src="${bdict['src']}" style="max-width:${tmodel.max_width}px"></span>`;
         super(tmodel,bdict,innerHTML);
-        this.element.onload=()=>{
-            if(scale==null) scale=[this.element.offsetWidth,this.element.offsetHeight];
-            this.update({'scale':scale});
+        this.load_finish=false;
+        this.element.firstChild.onload=()=>{
+            this.load_finish=true;
+            this.onload();
         }
+    }
+    update(ndict=null){
+        if(this.load_finish)
+            super.update(ndict);
+    }
+    onload(){
+        if(this.bdict['scale']==undefined)
+            this.bdict['scale']=this.element.offsetWidth+','+this.element.offsetHeight;
+        this.update(this.bdict);
     }
 }
 export class Link extends TElement{           //----------------------一般連結
@@ -239,25 +249,28 @@ export class Link extends TElement{           //----------------------一般連�
 export class Table extends TElement{           //----------------------一般表格
     constructor(tmodel,bdict){
         bdict['type']='table';
-        super(tmodel,bdict,`<table style="border:1px solid;max-width:${tmodel.max_width}px;"></table>`);
+        bdict['bline']='1';   //設定為有框線
+        super(tmodel,bdict,`<table style="border-collapse: collapse;border:1px solid;max-width:${tmodel.max_width}px;"></table>`);
         //-------------------------------------置入table內容
         let ranks=bdict['ranks'].split(',');
-        let row=parseInt(ranks[0]);
-        let col=parseInt(ranks[1]);
-        let max_width=tmodel.max_width/row;
+        let row=parseInt(ranks[0]);        //多少 橫 條
+        let col=parseInt(ranks[1]);        //多少 直 條
+        let max_width=tmodel.max_width/col;
         this._ths=[];
         for(let i=0;i<row;i++){
             let tr=document.createElement('tr');
-                tr.style.border='1px solid';
-                tr.style.position='relative';
-                for(let j=0;j<col;j++){
-                    let _th=document.createElement('th');
-                    _th.style="border:1px solid;font-weight:300;position:relative;text-align:left;vertical-align:top;";
-                    _th.style.maxWidth=max_width+'px';
-                    tr.appendChild(_th);                   
-                    this._ths.push(_th);
-                }
-                this.element.appendChild(tr);
+            //tr.style.display='inline-block';
+            //tr.style.minHeight=tmodel.text_dict['fontSize']+'px';
+            tr.style.border='1px solid';
+            tr.style.position='relative';
+            for(let j=0;j<col;j++){
+                let _th=document.createElement('th');
+                _th.style="border:1px solid;font-weight:300;position:relative;text-align:left;vertical-align:top;";
+                _th.style.maxWidth=max_width+'px';
+                tr.appendChild(_th);                   
+                this._ths.push(_th);
+            }
+            this.element.appendChild(tr);
         }
         this.first_update=false;
     }
@@ -265,7 +278,7 @@ export class Table extends TElement{           //----------------------一般表
         super.update(ndict);
         //-----------------------------
         if(!this.first_update){
-            let max_width=this.tmodel.max_width/parseInt(this.bdict['ranks'].split(',')[0]);
+            let max_width=this.tmodel.max_width/parseInt(this.bdict['ranks'].split(',')[1]);
             this.tmodels=[];
             let tcontrol=this.tmodel.tcontrol;
             let contents=[];
@@ -274,7 +287,12 @@ export class Table extends TElement{           //----------------------一般表
                 let tmodel=tcontrol.NewTModel(this._ths[i]);
                 tmodel.max_width=max_width;
                 if(contents.length>0) tmodel.LoadString(contents[i]);
+                else tmodel.insert_telement(new Line_space(tmodel,tmodel.text_dict));
                 this.tmodels.push(tmodel);
+                this._ths[i].style.width='auto';
+                //this._ths[i].style.display='inline-block';
+                this._ths[i].style.minWidth=tmodel.text_dict['fontSize']+'px';
+                //this._ths[i].style.minHeight=tmodel.text_dict['fontSize']+'px';
             }
             this.first_update=true;
         }
