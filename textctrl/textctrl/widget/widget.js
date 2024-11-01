@@ -79,7 +79,7 @@ export class NavBar{
         if(end) this.right_div.appendChild(li);
         else this.left_div.appendChild(li);
     }
-    add_dropdown(name,items_list,width=null,end=false){
+    add_dropdown(name,items_list,item_width=null,end=false){
         let li=document.createElement('li');
         li.classList.add('textctrlNAV-dropdown');
         
@@ -89,8 +89,8 @@ export class NavBar{
         li.appendChild(a);
         let div=document.createElement('div');
         div.classList.add('textctrlNAV-dropdown-content');
-        if(width!=null)
-            div.style.width=width+'px';
+        if(item_width!=null)
+            div.style.width=item_width+'px';
         for(let i=0;i<items_list.length;i++){
             let item=items_list[i];
             let ia;
@@ -108,4 +108,141 @@ export class NavBar{
         if(end) this.right_div.appendChild(li);
         else this.left_div.appendChild(li);
     }
+}
+let model_css=`
+.textctrlModal {
+      display: none; /* 初始隱藏 */
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.4); /* 半透明黑色背景 */
+    }
+    /* 模態內容 */
+    .textctrlModal-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 0;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 500px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 標題 */
+    .textctrlModal-header {
+      padding: 15px;
+      border-bottom: 1px solid #ddd;
+      font-size: 18px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* 內容 */
+    .textctrlModal-body {
+      padding: 20px;
+      font-size: 16px;
+    }
+
+    /* footer區域 */
+    .textctrlModal-footer {
+      padding: 15px;
+      border-top: 1px solid #ddd;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* 按鈕樣式 */
+    .textctrlModal_btn {
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+    }
+
+    .textctrlModal_btn-cancel {
+      background-color: #ccc;
+    }
+
+    .textctrlModal_btn-confirm {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    /* 關閉按鈕 */
+    .textctrlModal_close {
+      color: #aaa;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .textctrlModal_close:hover,
+    .textctrlModal_close:focus {
+      color: #000;
+      text-decoration: none;
+      cursor: pointer;
+    }
+`;
+function doc_obj(tag,classname,innerHTML=''){
+  let div_obj=document.createElement(tag);
+  let classnames=classname.split(' ');
+  for (let i=0;i<classnames.length;i++)
+      div_obj.classList.add(classnames[i]);
+  if(innerHTML.length>0)
+    div_obj.innerHTML=innerHTML;
+  return div_obj;
+}
+add_css(model_css);
+export class TextctrlModal{
+  constructor(title,contentHTML,check_func=null){
+    function close_modal(){modal.style.display = "none";}
+    let modal=doc_obj('div','textctrlModal');
+    modal.style.display = "none";
+    //------------------------------
+    let modal_content=doc_obj('div','textctrlModal-content');
+    
+    let modal_header=doc_obj('div','textctrlModal-header');
+    modal_header.innerHTML=`<span>${title}</span>`;
+    let _close=doc_obj('span','textctrlModal_close','&times;');
+    _close.onclick=close_modal;
+    modal_header.appendChild(_close);
+    modal_content.appendChild(modal_header);
+
+
+    let modal_body=doc_obj('div','textctrlModal-body');
+    modal_body.innerHTML=contentHTML;
+    modal_content.appendChild(modal_body);
+
+    let modal_footer=doc_obj('div','textctrlModal-footer');
+    let canel_btn=doc_obj('button','textctrlModal_btn textctrlModal_btn-cancel');
+    canel_btn.onclick =close_modal;
+    modal_footer.appendChild(canel_btn);
+    if(check_func==null) canel_btn.innerHTML='關閉'; 
+    else{
+      canel_btn.innerHTML='取消'; 
+      let check_btn=doc_obj('button','textctrlModal_btn textctrlModal_btn-confirm','確認');
+      check_btn.onclick=function (){
+        check_func();
+        modal.style.display = "none";
+      }
+      modal_footer.appendChild(check_btn);
+    }
+    modal_content.appendChild(modal_footer);
+    modal.appendChild(modal_content);
+    document.body.appendChild(modal);
+    this.modal=modal;
+  }
+  launch(){
+    this.modal.style.display = "block";
+  }
 }

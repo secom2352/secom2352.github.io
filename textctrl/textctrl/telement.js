@@ -5,6 +5,7 @@ export class TElement{
         this.tmodel=tmodel;
         this.bdict=bdict;
         this.type=bdict['type'];
+        this.load_finish=true;           //是否載入完成(默認完成)
         let container=document.createElement(tag);
         if(innerHTML!=''){
             container.innerHTML=innerHTML;
@@ -221,7 +222,8 @@ export class TextGroup extends TElement{           //----------------------一�
 export class Image extends TElement{           //----------------------一般圖片
     constructor(tmodel,bdict,scale=null){
         bdict['type']='image';
-        let innerHTML=`<span><img src="${bdict['src']}" style="max-width:${tmodel.max_width}px"></span>`;
+        if(bdict['src']=='') bdict['src']='https://secom2352.github.io/textctrl/image/image-not-found.png';
+        let innerHTML=`<span><img src="${bdict['src']}" onerror="this.src='image/image-not-found.png'" style="max-width:${tmodel.max_width}px"></span>`;
         super(tmodel,bdict,innerHTML);
         this.load_finish=false;
         this.element.firstChild.onload=()=>{
@@ -250,7 +252,7 @@ export class Table extends TElement{           //----------------------一般表
     constructor(tmodel,bdict){
         bdict['type']='table';
         bdict['bline']='1';   //設定為有框線
-        super(tmodel,bdict,`<table style="border-collapse: collapse;border:1px solid;max-width:${tmodel.max_width}px;"></table>`);
+        super(tmodel,bdict,`<table style="border-collapse: collapse;max-width:${tmodel.max_width}px;"></table>`);
         //-------------------------------------置入table內容
         let ranks=bdict['ranks'].split(',');
         let row=parseInt(ranks[0]);        //多少 橫 條
@@ -261,7 +263,7 @@ export class Table extends TElement{           //----------------------一般表
             let tr=document.createElement('tr');
             //tr.style.display='inline-block';
             //tr.style.minHeight=tmodel.text_dict['fontSize']+'px';
-            tr.style.border='1px solid';
+            //tr.style.border='1px solid';
             tr.style.position='relative';
             for(let j=0;j<col;j++){
                 let _th=document.createElement('th');
@@ -288,6 +290,7 @@ export class Table extends TElement{           //----------------------一般表
                 tmodel.max_width=max_width;
                 if(contents.length>0) tmodel.LoadString(contents[i]);
                 else tmodel.insert_telement(new Line_space(tmodel,tmodel.text_dict));
+                tmodel.parent=this;
                 this.tmodels.push(tmodel);
                 this._ths[i].style.width='auto';
                 //this._ths[i].style.display='inline-block';

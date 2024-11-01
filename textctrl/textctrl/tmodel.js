@@ -719,9 +719,34 @@ export class TModel{
         }
         this.insert_telements(_telements,true,index);
     }
+    onload_finish(){
+        for(let i=0;i<this.telements.length;i++){
+            let telement=this.telements[i];
+            if(!telement.load_finish){
+                console.log(telement.type);
+                return false;
+            }
+            if(telement.type=='table'){
+                for(let j=0;j<telement.tmodels.length;j++){
+                    if(!telement.tmodels[j].onload_finish())
+                        return false;
+                }
+            }
+        }
+        return true;
+    }
     LoadString(TmString){                    //載入物件字串
+        function wait_to_update_align(){
+            if(this.onload_finish)
+                console.log('onload完成');
+            else{
+                console.log('載入中');
+                setInterval(wait_to_update_align,1000);
+            }
+        }
         this.delete(0,this.telements.length);     //刪除全部
         this.Insert_TmString(TmString);
+        //setTimeout(wait_to_update_align,1000);
     }
     back(){
         this.update_history=false;

@@ -69,6 +69,18 @@ export class TControl{
     clear(){
         this.LoadString('');
     }
+    savefile(){
+        let code=this.ToString();
+        let utf8Encode = new TextEncoder();
+        const blob = new Blob([utf8Encode.encode(code)], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'save.txt';
+        a.click();
+        // 釋放 URL 對象
+        URL.revokeObjectURL(url);
+    }
 }
 let doc=document.getElementById('textctrl');
 //let tdoc=new TControl(doc,ExTModel);

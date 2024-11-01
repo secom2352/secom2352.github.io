@@ -9,6 +9,19 @@ class EpCode extends TElement{
         super(tmodel,bdict,innerHTML);
         this.type='text';
     }
+    transform(key,value){
+        super.transform(key,value);
+        //校正文字
+        let osize=this.bdict['osize'].split(',');osize=[parseInt(osize[0]),parseInt(osize[1])];
+        let nowsize=this.bdict['scale'].split(',');nowsize=[parseInt(nowsize[0]),parseInt(nowsize[1])];
+        let w=nowsize[0]/osize[0];
+        let h=nowsize[1]/osize[1];
+        let r=parseInt(this.bdict['rotate']);
+        if(w>h){
+            w=h;
+            this.element.style.transform=`scale(${w},${h}) rotate(${r}deg)`;
+        }
+    }
     transformup(){
         console.log('transform');
         let rect=this.get_rect();
@@ -81,7 +94,7 @@ export class CTModel extends TModel{
     to_eps_middle(){
         let format=`
         一般文字  :字
-        特殊:加入\\
+        特殊:加入[空]
             拉縮文字  :tw,h 字[空]
             對齊      :[l,c,r]
             變數(一般):kw,h [id][空]
@@ -110,38 +123,43 @@ export class CTModel extends TModel{
                 let w=Math.round(rect[2]*2/unit)/2;
                 let h=Math.round(rect[3]*0.75/unit);
                 if(_dict['key']!=undefined){
-                    code_box.push('\\k'+Math.round(w*2/_dict['text'].length)+','+h+' '+_dict['key']+' ');
+                    code_box.push(' k'+Math.round(w*2/_dict['text'].length)+','+h+' '+_dict['key']+' ');
                 }else{
                     if(!isASCII(_dict['text'])){
                         w=Math.round(w);
                         if(w==1 && h==1){
-                            code_box.push(_dict['text']);
-                        }else code_box.push('\\t'+w+','+h+' '+_dict['text']+' ');
+                            if(_dict['text']!=' ')
+                                code_box.push(_dict['text']);
+                            else code_box.push(' '+_dict['text']);
+                        }else code_box.push(' t'+w+','+h+' '+_dict['text']+' ');
                     }else{
                         if(w==0.5 && h==1){
-                            code_box.push(_dict['text']);
-                        }else code_box.push('\\t'+Math.round(w*2)+','+h+' '+_dict['text']+' ');
+                            if(_dict['text']!=' ')
+                                code_box.push(_dict['text']);
+                            else code_box.push(' '+_dict['text']);
+                        }else code_box.push(' t'+Math.round(w*2)+','+h+' '+_dict['text']+' ');
                     }
                 }
             }
             if(_dict['type']=='align'){
-                code_box.push('\\'+_dict['align'][0]);
+                code_box.push(' '+_dict['align'][0]);
             }
             if(['image','varimage'].includes(_dict['type'])){
                 let line_width=this.displayer.offsetWidth-this.padding[0]*2;
                 let w=rect[2]/line_width;
                 let h=rect[3]/line_width;
+                if(_dict['dsrc']==undefined) _dict['dsrc']=_dict['src'];
                 if(_dict['key']!=undefined){
                     if(_dict['dtype']=='barcode')
-                        code_box.push('\\b'+w+','+h+' '+_dict['key']+' ');
+                        code_box.push(' b'+w+','+h+' '+_dict['key']+' ');
                     else if(_dict['dtype']=='QR code')
-                        code_box.push('\\q'+w+','+h+' '+_dict['key']+' ');
+                        code_box.push(' q'+w+','+h+' '+_dict['key']+' ');
                 }else{
-                    code_box.push('\\i'+w+','+h+' '+_dict['src']+' ');
+                    code_box.push(' i'+w+','+h+' '+_dict['dsrc']+' ');
                 }
             }
             if(_dict['type']=='table'){
-                code_box.push('\\T'+_dict['ranks']+','+_dict['bline']);
+                code_box.push(' T'+_dict['ranks']+','+_dict['bline']);
                 let ranks=_dict['ranks'].split(',');
                 let col=parseInt(ranks[1]);
                 for(let ck=0;ck<col;ck++){
@@ -156,7 +174,7 @@ export class CTModel extends TModel{
                 code_box.push(' ');
             }
             if(_dict['type']=='br'){
-                code_box.push('\\n');
+                code_box.push(' n');
                 bottom=0;
             }
         }

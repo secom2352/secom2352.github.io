@@ -27,16 +27,7 @@ nav.add_dropdown('檔案',[
             file.click();
         }],
         ['儲存檔案',function (event){
-            let code=tctrl.ToString();
-            let utf8Encode = new TextEncoder();
-            const blob = new Blob([utf8Encode.encode(code)], { type: 'application/octet-stream' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'save.txt';
-            a.click();
-            // 釋放 URL 對象
-            URL.revokeObjectURL(url);
+            tctrl.savefile();
         }],
     ],100);
 var now_var=0;
@@ -82,7 +73,7 @@ function insert_var_image(src,w,h,dtype){
 //    ['自訂變數',function (event){insert_var(10,'自訂變數')}],
 //]);
 nav.add_dropdown('系統變數',[
-    ['時間',function (event){insert_var()}],
+    //['時間',function (event){insert_var()}],
     ['條碼',function (event){insert_var_image('image/barcode.png',172,70,'barcode')}],
     ['QR code',function (event){insert_var_image('image/hello_world.png',200,200,'QR code')}],
 ]);

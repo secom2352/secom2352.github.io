@@ -1,4 +1,5 @@
 import {add_css,HtmlElement,VoidElement} from "./tool.js";
+import { TextctrlModal } from "./widget/widget.js";
 export class Resizer{
     constructor(tcontrol){
         this.tcontrol=tcontrol;
@@ -134,21 +135,37 @@ export class CustomMenu{
         this.add_btn(customMenu1,'貼上',function (event){
             tcontrol.tmodel.paste();
         });
-        this.add_btn(customMenu1,'插入圖片',function (event){
-            let url = prompt("Enter image url", "https://allen2352.github.io/speed_test.jpg");
-            if (url != null) {
-                tcontrol.tmodel.insert_image(url);
+        //-------------------------------------------------------------
+        let textctrlModal=new TextctrlModal('插入圖片',`<input placeholder="輸入圖片網址" style="width:100%;font-size:1rem;" id='textctrl_imgurl'><br/><br/><br/>
+                                                        <input type="file" id='textctrl_imgupload'><br/><br/>
+                                                        <label for="textctrl_imgpath">轉碼時讀取位址:</label><input id="textctrl_imgpath" style="font-size:1rem;">`,
+        function (){
+            if(textctrl_imgpath.value!='')
+            tcontrol.tmodel.insert_image(upload_src,{'dsrc':textctrl_imgpath.value});
+        });
+        let textctrl_imgurl=document.getElementById('textctrl_imgurl');
+        let textctrl_imgupload=document.getElementById('textctrl_imgupload');
+        let textctrl_imgpath=document.getElementById('textctrl_imgpath');
+        textctrl_imgurl.addEventListener('input',function (event){
+            textctrl_imgpath.value=textctrl_imgurl.value;
+        })
+        let upload_src='';
+        textctrl_imgupload.addEventListener('change', function(event) {
+            const file = event.target.files[0]; // 获取第一个上传的文件
+            if (file) {
+                textctrl_imgpath.value=file.name;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                  const preview = document.getElementById('preview');
+                  upload_src = e.target.result; // 将文件内容作为图像来源
+                  preview.style.display = 'block'; // 显示图片
+                };
+                reader.readAsDataURL(file);
             }
         });
-        /*this.add_btn(customMenu1,'插入連結',function (event){
-            let url = prompt("Enter link url", "https://allen2352.github.io/speed_test.jpg");
-            if (url != null) {
-                let link_name= prompt("Enter link name", "連結");
-                if (link_name != null) {
-                    tcontrol.tmodel.insert_link(url,link_name);
-                }
-            }
-        });*/
+        this.add_btn(customMenu1,'插入圖片',function (event){
+            textctrlModal.launch();
+        });
         this.add_btn(customMenu1,'文字方塊',function (event){
             tcontrol.tmodel.insert_table(1,1);
         });
@@ -161,12 +178,29 @@ export class CustomMenu{
                 }
             }
         });
-        this.add_btn(customMenu1,'插入html',function (event){
-            let html_code = prompt("Enter html", "<button>123</button>");
-            if (html_code != null) {
-                tcontrol.tmodel.insert_html(html_code);
+        this.add_btn(customMenu1,'下載',function (event){
+            let table_obj=tcontrol.tmodel.parent;
+            if(table_obj==undefined){
+                tcontrol.savefile();
+            }else{
+                let table=table_obj.element;
+                if (table_obj.bdict['bline']=='1'){
+                    for(let i=0;i<table_obj._ths.length;i++)
+                        table_obj._ths[i].style.border='0px';
+                    table_obj.bdict['bline']='0';
+                }else{
+                    for(let i=0;i<table_obj._ths.length;i++)
+                        table_obj._ths[i].style.border='1px solid';
+                    table_obj.bdict['bline']='1';
+                }
             }
-        });
+        },'table_border');
+        //this.add_btn(customMenu1,'插入html',function (event){
+        //    let html_code = prompt("Enter html", "<button>123</button>");
+        //    if (html_code != null) {
+        //        tcontrol.tmodel.insert_html(html_code);
+        //    }
+        //});
         document.body.appendChild(customMenu1);
         let customMenu2=HtmlElement('div',"position: absolute;visibility:hidden;background-color: #ffffff;border: 1px solid #ccc;box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.2);x: 1000;",'<ul style="list-style: none;padding: 0;margin: 0;"></ul>');
         customMenu2.onclick=function (event){
@@ -178,10 +212,10 @@ export class CustomMenu{
         this.add_btn(customMenu2,'剪下',function (event){
             tcontrol.tmodel.cut(cm.selecting);
         });
-        this.add_btn(customMenu2,'屬性',function (event){
-            let telement=tcontrol.tmodel.telements[tcontrol.tmodel.selecting[0]];
-            tcontrol.resizer.resize(telement);
-        });
+        //this.add_btn(customMenu2,'屬性',function (event){
+        //    let telement=tcontrol.tmodel.telements[tcontrol.tmodel.selecting[0]];
+        //    tcontrol.resizer.resize(telement);
+        //});
         this.customMenu={'insert':customMenu1,'revise':customMenu2};
         document.body.appendChild(customMenu2);
 
@@ -193,11 +227,21 @@ export class CustomMenu{
         customMenu.style.visibility= 'visible';
         customMenu.style.left = `${pos[0]}px`;
         customMenu.style.top = `${pos[1]}px`;
+        if(name=='insert'){
+            let table_border=document.getElementById('table_border');
+            if(this.tcontrol.tmodel.parent==undefined)
+                table_border.innerHTML='下載';
+            else{
+                if(this.tcontrol.tmodel.parent.bdict['bline']=='1'){
+                    table_border.innerHTML='隱藏邊框';
+                }else table_border.innerHTML='顯示邊框';
+            }
+        }
     }
     onmousedown(event){
         
     }
-    add_btn(customMenu,name,onclick){
+    add_btn(customMenu,name,onclick,id=null){
         let li=HtmlElement('li','',name);
         li.classList.add("textctrlCM");
         li.onmousedown=function (event){
@@ -206,6 +250,7 @@ export class CustomMenu{
         li.onmouseup=function (event){
             //event.stopPropagation();
         }
+        if(id!=null) li.id=id;
         li.onclick=onclick;
         customMenu.firstChild.appendChild(li);
     }
@@ -303,14 +348,17 @@ export class SelectionBox{
         }
         document.body.appendChild(menu);
         this.menu=menu;
+        this.enable=false;
     }
     show(x,y){         //定位在 index 旁邊
-        let mwidth=this.menu.offsetWidth;
-        x=Math.max(Math.min(x-mwidth/2,window.innerWidth-70-mwidth),10);
-        this.menu.style.left=x+'px';
-        this.menu.style.top=(y+this.menu.offsetHeight-10)+'px';
-        this.menu.style.visibility='visible';
-        this.render_status();
+        if(this.enable){
+            let mwidth=this.menu.offsetWidth;
+            x=Math.max(Math.min(x-mwidth/2,window.innerWidth-70-mwidth),10);
+            this.menu.style.left=x+'px';
+            this.menu.style.top=(y+this.menu.offsetHeight-10)+'px';
+            this.menu.style.visibility='visible';
+            this.render_status();
+        }
     }
     render_status(){
         let bdict=this.tcontrol.tmodel.inherit_text_dict(this.tcontrol.tmodel.selecting[0]+1);
