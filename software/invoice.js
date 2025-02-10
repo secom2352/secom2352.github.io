@@ -134,7 +134,7 @@ export function Invoice(api=null,params=null){
     panel.addEvent('resize',function(size){Tspace.setHeight(size[1]-navh);Tfilelist.setHeight(size[1]-navh);});
     //============================================================================面板物件
     let tctrl=new CTControl(Tspace);
-    tctrl.inputText('這是內容------123\n第二行的內容');
+    //tctrl.inputText('這是內容------123\n第二行的內容');
     //tctrl.setAlign('center');
     let filelist=new FileList(Tfilelist,tctrl,[0,0],['100%','90%']);
     //====================================================================操作按鈕
@@ -198,7 +198,7 @@ export function Invoice(api=null,params=null){
 class CTControl extends TControl{
     constructor(parent,_style=null){
         //加上padding後，自身大小為778
-        super(parent,CTModel,[0,60],[768,'auto'],_style);
+        super(parent,CTModel,[0,60],[778,'auto'],_style);
         this.fitTspace();
         let ctctrl=this;
         parent.addEvent('resize',function(size){ctctrl.fitTspace();});
