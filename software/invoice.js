@@ -1,12 +1,12 @@
-import { html_img,isASCII,copy_dict, convert_string, getabsrect, round, defaultDict} from "../webComponents/tool.js";
+import { html_img,isASCII, defaultDict, fillMissingKeys, NumberArray} from "../webComponents/tool.js";
 //------------------------------------------------------------------------------ui
-import { body, Button, ContextMenu, defaultStyle, DropdownButton, getRelPos, Label, Panel, ScrollInput, SwitchButton, voidPanel } from "../webComponents/ui/base.js";
+import { body, Button, defaultStyle, DropdownButton, getRelPos, Label, Panel, ScrollInput, Select, SwitchButton, voidPanel } from "../webComponents/ui/base.js";
 import { ExtendBar } from "../webComponents/ui/extendbar.js";
 import { DragObj, NavBar, Tube, widget } from "../webComponents/ui/widget.js";
 //------------------------------------------------------------------------------textctrl
 import { TControl } from "../webComponents/textctrl/tcontrol.js";
 import { TElement,Char,Image, TElementRegistry} from "../webComponents/textctrl/telement.js";
-import { DemoModel, InputTextBox, RectModel, TModel,Table} from "../webComponents/textctrl/tmodel.js";
+import { DemoModel, RectTextModel,TModelTElement} from "../webComponents/textctrl/tmodel.js";
 
 
 class FileList{
@@ -109,19 +109,33 @@ export function Invoice(api=null,params=null){
     project_btn.setMainMenu([
         ['開新檔案',function (event){tctrl.clear();}],
         ['開啟存檔',function (event){tctrl.loadFile();}],
-        ['儲存檔案',function (event){tctrl.saveFile();}],'hr',
-        //['版面設定',function (event){}]
+        ['儲存檔案',function (event){tctrl.saveFile('invoice.txt');}],//'hr',
+        ['版寬&ensp;&ensp;▶','invoice_width'],
+        ['縮放&ensp;&ensp;▶','invoice_zoom']
+    ]);
+    project_btn.addMenu(1,'invoice_width',[
+        ['57mm',(event)=>{tctrl.setEscWidth(57)}],
+        ['80mm',(event)=>{tctrl.setEscWidth(80)}],
+    ]);
+    function setInvoiceZoom(zoom){
+        tctrl.zoom(zoom);
+    }
+    project_btn.addMenu(1,'invoice_zoom',[
+        ['1.0x',(event)=>{setInvoiceZoom(1)}],
+        ['1.5x',(event)=>{setInvoiceZoom(1.5)}],
+        ['2.0x',(event)=>{setInvoiceZoom(2)}],
+        ['2.5x',(event)=>{setInvoiceZoom(2.5)}],
     ]);
     nav.add_item(project_btn,'left');
     //--------------------------頁面縮放
     nav.add_item(widget('button',[-1,'預覽',function (event){
-        
+            console.log('tctrl size:',tctrl.size);
         },null,null,{'color':'white','font-size':'16px','padding':'10px 10px','border':'0px'}],
         {'hover':[{'background-color':'green'}]}
     ),'right');
     //--------------------------格式匯出
     nav.add_item(widget('button',[-1,'格式匯出&ensp;',function (event){
-        let code=tctrl.mtmodel.to_eps_middle();navigator.clipboard.writeText(code);alert('已複製:\n'+code);
+        let code=tctrl.ToTcString();navigator.clipboard.writeText(code);alert('已複製:\n'+code);
         },null,null,{'background-color':'transparent','color':'white','font-size':'16px','padding':'10px 20px','border':'0px'}],
         {'hover':[{'background-color':'white','color':'black'}]}
     ),'right');
@@ -134,7 +148,7 @@ export function Invoice(api=null,params=null){
     panel.addEvent('resize',function(size){Tspace.setHeight(size[1]-navh);Tfilelist.setHeight(size[1]-navh);});
     //============================================================================面板物件
     let tctrl=new CTControl(Tspace);
-    //tctrl.inputText('這是內容------123\n第二行的內容');
+    tctrl.inputText('這是內容------123\n第二行的內容\nabcdefghijklmnopqrstuvwxyz');
     //tctrl.setAlign('center');
     let filelist=new FileList(Tfilelist,tctrl,[0,0],['100%','90%']);
     //====================================================================操作按鈕
@@ -146,32 +160,38 @@ export function Invoice(api=null,params=null){
         //-------------------------------------------------------------系統變數
         let now_var=0;
         function insert_var_image(src,w,h,dtype){
-            let bdict={'type':'varimage','src':src,'scale':w+','+h,'key':now_var,'dtype':dtype}
+            let bdict={'type':'varimage','size':w+','+h,'varname':now_var,'codeType':dtype}
             now_var++;
-            tctrl.tmodel.insert_varimage(bdict);
+            tctrl.insertImage(src,bdict);
             //tctrl.insert_text(key,{'var':key})
         }
         let system_vars=new DropdownButton(-1,'系統工具',{'background-color':'#555555'},null,null,ddb_style);
         system_vars.setMainMenu([
-            ['圖形',function (event){}],
             ['循環模板',function(event){
-                let tmodel=tctrl.nowtmodel;
                 let tblock=tctrl.nowtblock;
-                let forloop=new ForLoop(tblock);
-                tblock.addObj(forloop);
+                tblock.changeLine();
+                tblock.addObj({'type':'forloop'});
+                tblock.changeLine();
                 tblock.arrange();
-            }]
+            }],
+            ['圖形&ensp;&ensp;▶','graphics'],
+        ]);
+        system_vars.addMenu(1,'graphics',[
+            ['水平線(細)',function(event){tctrl.setHrLine(1);}],
+            ['水平線(中)',function(event){tctrl.setHrLine(2);}],
+            ['水平線(粗)',function(event){tctrl.setHrLine(4);}],
         ]);
         dragTube.add_item(system_vars);
         //-------------------------------------------------------------一般變數
         function insert_var(key=null){
             if(key==null){key=now_var;now_var++;}
-            tctrl.inputTElements(new VarName(tctrl.nowtblock,{'varname':key+''}));
+            tctrl.inputTElements({'type':'varname','varname':key+''});
+            tctrl.renderData();
         }
         let common_var=new DropdownButton(-1,'插入變數',{'background-color':'#555555'},null,null,ddb_style);
         common_var.setMainMenu([
-            ['插入變數',function (event){insert_var();}],
-            ['插入代碼行',function (event){tctrl.nowtmodel.insertCodeLine();}],
+            ['變數',function (event){insert_var();}],
+            //['插入代碼行',function (event){tctrl.nowtmodel.insertCodeLine();}],
             ['條碼',function (event){insert_var_image('image/barcode.png',172,70,'barcode');}],
             ['QR code',function (event){insert_var_image('image/hello_world.png',200,200,'QR code')}]
         ]);
@@ -193,48 +213,84 @@ export function Invoice(api=null,params=null){
         dragTube.setPos([Tspace.pos[0]+5,Tspace.pos[1]+5]);
     }
     flist_switch.setSwitch(false,0);
+    flist_switch.enable(false);
 }
 
 class CTControl extends TControl{
     constructor(parent,_style=null){
         //加上padding後，自身大小為778
-        super(parent,CTModel,[0,60],[778,'auto'],_style);
+        _style=defaultStyle(_style,{'min-height':'200px'});
+        super(parent,CTModel,{'padding':'5,5'},[0,60],[394,'auto'],_style);
+        this.padding=this.mtmodel.padding;
+        //---------------------------基本參數
+        this.esc_width=57;
+        this.display_width=768;
+        //---------------------------
         this.fitTspace();
         let ctctrl=this;
-        parent.addEvent('resize',function(size){ctctrl.fitTspace();});
+        parent.addEvent('resize',function(size){
+            ctctrl.fitTspace();});
+    }
+    zoom(zoom){
+        super.zoom(zoom);
+        this.fitTspace();
+    }
+    setEscWidth(esc_width){
+        this.esc_width=esc_width;
+        this.display_width={57:384,80:576}[esc_width];
+        let width=this.display_width+this.padding[0]*2;
+        this.mtmodel.nowtblock.setBlock([this.padding[0],this.padding[1],
+            this.display_width,this.mtmodel.size[1]-this.padding[1]*2]);
+        this.setWidth(width);
+        this.fitTspace();
     }
     fitTspace(){
-        let paddingX=this.mtmodel.padding[0];
-        this.setX(Math.max((this.parent.size[0]-768-paddingX*2)/2,0));
+        this.setX(Math.max((this.parent.size[0]-this.size[0])/2,0));
+        this.nowtblock.arrange();
+    }
+    //--------------------------------------------------儲存格式
+    getDict(){
+        let tcDict=super.getDict();
+        tcDict['escWidth']=this.esc_width+'';
+        return tcDict;
+    }
+    loadDict(tcDict){
+        this.setEscWidth(parseInt(tcDict['escWidth']));
+        this.clear();
+        this.mtmodel.LoadTmString(tcDict['mtmodel']);
     }
 }
 class ForLoop extends TElement{
     constructor(tblock,bdict=null){
         if(bdict==null) bdict={};
         super(tblock,bdict);
-        let size=[tblock.tmodel.size[0],200];
+        let size=[tblock.tmodel.getInnerWidth(),200];
         this.size=size;
         //-------------------------------------------------------建構輸入方塊
         let forloop=this;
-        this.loopItem=new VarModel(tblock.tcontrol,null,[100,50]);
-        this.loopArray=new VarModel(tblock.tcontrol,null,[150,50]);
+        this.loopItem=new VarModel(tblock.tcontrol,null,null,[100,25]);
+        this.loopArray=new VarModel(tblock.tcontrol,null,null,[100,25]);
 
-        let template=new CTModel(tblock.tcontrol,null,[size[0],size[1]-80]);
-        template.addEvent('resize',(size)=>{
-            forloop.size=[template.size[0]+20,template.size[1]+80];
-            tblock.arrange();
+        let template=new CTModel(tblock.tcontrol,null,null,[tblock.tmodel.size[0],size[1]-40]);
+        tblock.addEvent('setblock',(block)=>{    //跟隨母 tblock 變更大小
+            let tpBlock=template.nowtblock.getBlock();
+            if(block[2]!=tpBlock[2])
+                template.nowtblock.setBlock([tpBlock[0],tpBlock[1],block[2],tpBlock[3]]);
+            forloop.size=[template.getInnerWidth(),template.size[1]+40];
         });
         this.template=template;
-        this.font=tblock.tmodel.getTextFont(40,'Fira Code');
+        this.font=tblock.tmodel.getFontkey(20,'Fira Code');
         //-------------------------------------------------------載入資料
-        if(bdict['loopItem']) this.loopItem.nowtblock.LoadTeString(bdict['loopItem']);
-        if(bdict['loopArray']) this.loopArray.nowtblock.LoadTeString(bdict['loopArray']);
-        if(bdict['template']) this.template.nowtblock.LoadTeString(bdict['template']);
+        if(bdict['loopItem']) this.loopItem.inputText(bdict['loopItem']);
+        if(bdict['loopArray']) this.loopArray.inputText(bdict['loopArray']);
+        if(bdict['template']) {
+            this.template.LoadTmString(bdict['template']);
+        }
         this.addEvent('destroy',()=>{
             forloop.loopItem.destroy();
             forloop.loopArray.destroy();
             forloop.template.destroy();
-        })
+        });
     }
     select(is_selected){
         super.select(is_selected);
@@ -242,98 +298,198 @@ class ForLoop extends TElement{
         this.loopItem.select(is_selected);
         this.template.select(is_selected);
     }
+    setPos(pos){
+        super.setPos(pos);
+        let rect=this.getDisplayRect();
+        //-------------------------------------------------------------定位輸入框
+        let relPos=getRelPos(this.tmodel.tcontrol,this.tmodel);
+        this.loopItem.setPos([relPos[0]+90,relPos[1]+rect[1]+3]);
+        this.loopArray.setPos([relPos[0]+230,relPos[1]+rect[1]+3]);
+        this.template.setPos([relPos[0],relPos[1]+rect[1]+32]);
+        //this.template.nowtblock.arrange(false);
+    }
     render(){
         let tmodel=this.tmodel;
-        this.pos[0]=0;             //與模板並行
-        let rect=this.getrect();
+        //this.pos[0]=0;             //與模板並行
+        let rect=this.getDisplayRect();
         //-------------------------------------背景色
         if(this.is_selected) tmodel.drawRect(rect,'lightblue');
         else tmodel.drawRect(rect,'black');
         tmodel.setTextStyle(this.font,'white');
-        tmodel.drawText('ForLoop',[rect[0]+10,rect[1]+40]);
-        tmodel.drawText('in',[rect[0]+300,rect[1]+40]);
-        //-------------------------------------------------------------定位輸入框
-        let relPos=getRelPos(this.tmodel.tcontrol,this.tmodel);
-        this.loopItem.setPos([relPos[0]+this.pos[0]+180,relPos[1]+this.pos[1]+7]);
-        this.loopArray.setPos([relPos[0]+this.pos[0]+360,relPos[1]+this.pos[1]+7]);
-        this.template.setPos([relPos[0]+this.pos[0],relPos[1]+this.pos[1]+70]);
+        tmodel.drawText('ForLoop',[rect[0]+5,rect[1]+20]);
+        tmodel.drawText('in',[rect[0]+200,rect[1]+20]);
+        this.template.renderData();        
+    }
+    getDisplayRect(){
+        return [0,this.pos[1],this.tmodel.size[0],this.size[1]];
     }
     getDict(){
-        this.bdict['loopItem']=this.loopItem.nowtblock.ToTeString();
-        this.bdict['loopArray']=this.loopArray.nowtblock.ToTeString();
-        this.bdict['template']=this.template.nowtblock.ToTeString();
+        this.bdict['loopItem']=this.loopItem.getVarName();
+        this.bdict['loopArray']=this.loopArray.getVarName();
+        this.bdict['template']=this.template.ToTmString();
         return this.bdict;
     }
 }
 
 class EpCode extends Char{   //------------------------------------------------------------------- 文字
     constructor(tblock,bdict){
-        bdict=defaultDict(bdict,{'fontHeight':'48','fontFamily':'新細明體'});
+        bdict=defaultDict(bdict,{'fontHeight':'24','fontFamily':'新細明體'});
         super(tblock,bdict);
-        if(isASCII(this.bdict['char'])) this.size[0]=24;
-        else this.size[0]=48;
-        this.bdict['type']='epcode';
-        this.type='epcode';
+        this.adjustCharSize();
+    }
+    adjustCharSize(){
+        if(isASCII(this.char)) this.size[0]=this.fontHeight/2*this.scale[0];
+        else this.size[0]=this.fontHeight*this.scale[0];
+    }
+    transformup(){
+        let scale=NumberArray(this.bdict['scale']).map((value)=>Math.min(Math.max(Math.floor(value),1),7));
+        this.setDict({'scale':scale[0]+','+scale[1]});
+        this.adjustCharSize();
     }
 }
-class VarModel extends RectModel{
-    constructor(tcontrol,pos,size,_style=null){
-        _style=defaultStyle(_style,{'background':'yellow'});
-        super(tcontrol,pos,size,_style);
-        let vm=this;
-        this.nowtblock.addInputMethod('char',(char)=>{
-            return new Char(vm.nowtblock,{'char':char,
-                'fontFamily':'Fira Code','fontHeight':'48','color':'red'});
+class VarModel extends RectTextModel{  //     單行文字輸入框
+    constructor(tcontrol,mdict=null,pos=null,size=null,_style=null){
+        mdict=fillMissingKeys(mdict,{'background':'yellow',
+            'lineSpace':'0',
+            'lineHeight':'24',
+            'allowInputTypes':'epcode',
+            'allowOverWidth':'0',
+            'allowOverHeight':'0',
+            'allowChangeLine':'0',
+            'autoFitSize':'0',
+            'padding':'2,2',
+        });
+        super(tcontrol,mdict,pos,size,_style);
+        this.nowtblock.addInputMethod('epcode',(char)=>{
+            return {'type':'epcode','char':char,'fontFamily':'Fira Code','color':'red'};
         },true);
-        this.nowtblock.lineHeight=48;
-        this.nowtblock.enableChangeLine=false;
-        this.setPadding([1,1]);
+    }
+    getVarName(){
+        return this.getText('epcode','char');
     }
 }
 
-class VarName extends InputTextBox{
+class VarName extends TModelTElement{
     constructor(tblock,bdict=null){
-        bdict=defaultDict(bdict,{
-            'text':bdict['varname'],                                             //預設文字內容
-            'fontFamily':'Fira Code','fontHeight':'48','color':'red',            //文字屬性
-            'bgcolor':'yellow','size':'100,48','lineHeight':'48','padding':'5,0'  //輸入框
+        bdict=defaultDict(bdict,{'size':'10,24',
+            'allowOverWidth':'1',
+            'allowOverHeight':'0',
+            'allowChangeLine':'0',
+            'autoFitSize':'1',
+            'padding':'5,0'
         });
-        super(tblock,bdict);
+        bdict['size']='10,24';  //重置尺寸
+        super(tblock,bdict,VarModel,false);
+        if(bdict['varname']) this.nowtblock.inputText(bdict['varname']);
+    }
+    getVarName(){
+        return this.tmObj.getVarName();
+    }
+    getDict(){
+        let _dict=super.getDict();
+        _dict['varname']=this.getVarName();
+        return _dict;
     }
 }
-class CodeLine extends InputTextBox{
+class CodeLine extends TModelTElement{
     constructor(tblock,bdict=null){
         bdict=defaultDict(bdict,{
-            'fontFamily':'Fira Code','fontHeight':'48','color':'white',
-            'bgcolor':'black','size':'180,52','lineHeight':'48','padding':'5,2',
+            'fontFamily':'Fira Code','fontHeight':'24','color':'white',
+            'bgcolor':'black','size':'180,52','lineHeight':'24','padding':'5,2',
             'inpcolor':'white'
         });
         super(tblock,bdict);
     }
 }
 
-class VarImage extends Image{
-    constructor(tmodel,bdict){
-        super(tmodel,bdict);
-        this.bdict['type']='varimage';
-        this.type='varimage';
+class VarImage extends TElement{
+    constructor(tblock,bdict){
+        super(tblock,{'codeType':bdict['codeType']});   //自身只取 codeType
+        let vi=this;
+        this.teImage=new Image(tblock,bdict);
+        this.teImage.addEvent('onload',()=>{
+            vi.setSize(vi.teImage.size);
+            console.log('載入後大小:',vi.teImage.size);
+        });
+        this.varName=new VarName(tblock,{
+            'varname':bdict['varname']+'',
+            'size':'10,24',
+            'allowOverWidth':'1',
+            'allowOverHeight':'0',
+            'allowChangeLine':'0',
+            'autoFitSize':'1',
+            'padding':'5,0'
+        });
+        this.varName.addEvent('resize',(size)=>{
+            vi.setSize([Math.max(vi.size[0],size[0]),Math.max(vi.size[1],size[1])]);
+        });
+        this.addEvent('destroy',()=>{
+            this.teImage.destroy();
+            this.varName.destroy();
+        });
     }
-    onload(){
-        super.onload();
-        this.element.insertAdjacentHTML('beforeend',
-        `<span style="position:absolute;top:0px;left:0px;background-color:yellow;font-size:70px;">${this.bdict['key']}</span>`);
+    select(is_selected){
+        this.teImage.select(is_selected);
+        this.varName.select(is_selected);
+    }
+    setPos(pos){
+        super.setPos(pos);
+        this.teImage.setPos(pos);
+        this.varName.setPos([pos[0],pos[1]+this.teImage.size[1]-this.varName.size[1]]);
+    }
+    setSize(size){
+        size=[Math.max(this.varName.size[0],size[0]),Math.max(this.varName.size[1],size[1])];
+        this.bdict['size']=size[0]+','+size[1];
+        super.setSize(size);
+        this.teImage.setSize(size);
+    }
+    render(){
+        this.teImage.render();
+        this.varName.render();
+    }
+    getDict(){
+        let bdict=this.teImage.getDict();
+        bdict['type']='varimage';
+        bdict['varname']=this.varName.getVarName();
+        bdict['codeType']=this.bdict['codeType'];
+        return bdict;
     }
 }
 class CTModel extends DemoModel{
-    constructor(tcontrol,pos,size,_style=null){
-        super(tcontrol,pos,size,_style=null);
-        this.setPadding([5,5]);
-        this.nowtblock.lineHeight=48;
-        let tmodel=this;
+    constructor(tcontrol,mdict,pos,size,_style=null){
+        mdict=fillMissingKeys(mdict,{
+            'padding':'5,5',
+            'lineHeight':'24'
+        });
+        super(tcontrol,mdict,pos,size,_style=null);
         //--------------------------------------新增輸入模式
-        this.nowtblock.addInputMethod('epcode',(char)=>{return new EpCode(tmodel.nowtblock,{'char':char});},true);
-        this.fontA=[24,48];
-        this.fontB=[18,34];
+        this.nowtblock.addInputMethod('epcode',(char)=>{return {'type':'epcode','char':char};},true);
+        this.fontA=[12,24];
+        this.fontB=[9,17];
+        //--------------------------------------tblock 事件
+        let tblock=this.nowtblock;
+        //--------------------------------------- 屬性變更框
+        tcontrol.newSelectionBox('epcode',[
+            ['label','w:',[5,5]],
+            ['select',[1,2,3,4,5,6,7],[28,5],(teObj)=>{return teObj.scale[0];},(teObj,value)=>{
+                teObj.setDict({'scale':value+','+teObj.scale[1]});
+            }],['label','h:',[72,5]],
+            ['select',[1,2,3,4,5,6,7],[90,5],(teObj)=>{return teObj.scale[1];},(teObj,value)=>{
+                teObj.setDict({'scale':teObj.scale[0]+','+value});
+            }],['btn','<b>B</b>',[5,33],(teObj)=>{return teObj.bdict['B']=='1';},(teObj,value)=>{
+                teObj.setDict({'B':value?'1':'0'});
+            }],
+            ['btn','<u>U</u>',[30,33],(teObj)=>{return teObj.bdict['U']=='1';},(teObj,value)=>{
+                teObj.setDict({'U':value?'1':'0'});
+            }],
+            ['select',['Font A','Font B'],[60,35],(teObj)=>{return teObj.fontHeight==24?'Font A':'Font B';},(teObj,value)=>{
+                teObj.setDict({'fontHeight':value=='FontA'?'24':'17'});
+            }],
+        ],[125,60]);
+        //tblock.setSelectionBox('epcode');
+        tblock.addEvent('selectup',(event)=>{
+            tcontrol.showSelectionBox('epcode',event);
+        });
     }
     insertCodeLine(){
         this.nowtblock.inputTElements(new CodeLine(this.nowtblock));
@@ -344,8 +500,10 @@ class CTModel extends DemoModel{
         return this.nowtblock.ToTeString();
     }
 }
-
-TElementRegistry['epcode']=[EpCode,'char'];
-TElementRegistry['varname']=[VarName,null];
-TElementRegistry['codeline']=[CodeLine,null];
-TElementRegistry['forloop']=[ForLoop,null];
+Object.assign(TElementRegistry,{
+    'epcode':[EpCode,'char'],
+    'varname':[VarName,null],
+    'codeline':[CodeLine,null],
+    'forloop':[ForLoop,null],
+    'varimage':[VarImage,'src']
+});

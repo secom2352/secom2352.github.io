@@ -1,23 +1,23 @@
-import { ArrayFilter, ArrayRemove, inRect, isASCII } from "../tool.js";
+import { ArrayEqual, ArrayFilter, ArrayRemove, moreThan, inRect, isASCII, copyDict, defaultDict } from "../tool.js";
 import { defaultStyle, getRelPos } from "../ui/base.js";
-import { Align, Br,Char,Image, stringToTDict, TElementRegistry, teToString } from "./telement.js";
+import { Align, Br,Char,HrLine,Image, stringToTDict, TElementRegistry, teToString } from "./telement.js";
 class RectBlock{
-    constructor(rect){
+    constructor(tblock,rect){
+        this.tblock=tblock;
         this.setBlock(rect);
-        this.enableChangeLine=true;      //允許自動換行
-        this.enableExtendWidth=false;    //允許拓展寬度
-        this.enableExtendHeight=true;    //允許拓展高度
+        //this.tblock.minHeight=this.block[3]+this.tblock.lineSpace;
     }
     setBlock(block){
         this.xrange=[block[0]-1,block[0]+block[2]+1];
         this.yrange=[block[1]-1,block[1]+block[3]+1];
         this.initPos=[block[0],block[1]];
         this.block=block;
+        this.tblock.trigger_event('setblock',block);
     }
     inDomain(Rect){       //自身是否在某 Rect 之內
         return inRect(this.block,Rect);
     }
-    //---------------------------------------------------------在範圍之內
+    //--------------------------------------------------------- 在範圍之內
     inWidth(rect){
         return this.xrange[0]<rect[0] && rect[0]+rect[2]<this.xrange[1];
     }
@@ -27,11 +27,11 @@ class RectBlock{
     inblock(rect){
         return this.inWidth(rect) && this.inHeight(rect);
     }
-    //---------------------------------------------------------取得空間
+    //--------------------------------------------------------- 取得空間
     getVoidPos(rect,lineSpace=0){
         if(rect[0]<=this.initPos[0]) return [this.initPos[0],rect[1]];
         if(this.inWidth(rect)) return [rect[0],rect[1]];
-        if(this.enableChangeLine)
+        if(this.allowChangeLine)
             return [this.initPos[0],rect[1]+rect[3]+lineSpace];
         return null;
     }
@@ -44,9 +44,90 @@ class RectBlock{
     getLineWidth(pos){        //取得某座標下的行寬
         return this.block[2];
     }
+    //--------------------------------------------------------- 開始排列
+    arrange(){
+        //==========================================================調用常數
+        let tblock=this.tblock;
+        let relObjs=tblock.relObjs;
+        let lineSpace=tblock.lineSpace;
+        //-----------------------------------自身左右
+        let startX=this.block[0];
+        let blockWidth=this.block[2];
+        let endX=this.block[0]+this.block[2];
+        //==========================================================運算參數
+        //---------------------------------------------總參數
+        let isFisrtBr=true;
+        let k=0;const n=relObjs.length;
+        let y=this.block[1]+lineSpace;   //每列的 y 座標
+        let width=0;  //排列後要包含所有元素需要的最小寬度
+        let height=lineSpace;
+        //-----------------------------------------------單列參數
+        //=========================================================================== 總計算
+        while (k<n){
+            //-------------------------------------------------------單列計算
+            let lineHeight=tblock.lineHeight;
+            let p=k;    //--------k 為 單列起點
+            let xpos=[startX];  //[第一物件的X,......,該列最後可排物件的X,無法排入物件的X(該列最右X)];
+            let testX=startX;
+            while(k<n){
+                let baseObj=relObjs[k];
+                if(baseObj.type=='align'){
+                    testX=baseObj.getAlignX([testX,y],k);
+                    xpos[xpos.length-1]=testX;
+                }
+                testX+=baseObj.size[0];
+                if(testX>endX){   //如果超寬
+                    if(!tblock.allowOverWidth || moreThan(testX,tblock.limitRect[2])){  //若不允許超出寬度
+                        if(!tblock.allowChangeLine){
+                            console.log('寬度無法塞入');
+                            return false;
+                        }
+                        if(xpos.length>1) break;  //該物件需排在下一行
+                        else{
+                            console.log('超寬，強制排入');
+                            testX=endX;      //設置為最大寬度
+                        }
+                    }
+                }
+                if(baseObj.type=='br' && (xpos.length>1 || isFisrtBr) && tblock.allowChangeLine){
+                    break; //這非該行的第一個br，此br後需排在下一行
+                }
+                xpos.push(testX);  //將下一個 baseObj 該排在的 X 座標
+                lineHeight=Math.max(baseObj.size[1],lineHeight);
+                k++;
+            }
+            //-----------------------------------更新寬高
+            width=Math.max(width,xpos[xpos.length-1]-startX);
+            height+=lineHeight;
+            if(moreThan(y+lineHeight,tblock.limitRect[3])){
+                console.log('高度無法塞入');
+                return false;
+            }
+            //-----------------------------------開始設置
+            if(isFisrtBr) isFisrtBr=false;
+            for(let i=p;i<k;i++){
+                let baseObj=relObjs[i];
+                //--------------------------------------------------------判斷這個位置有沒有問題
+                baseObj.setPos([xpos[i-p],y+lineHeight-baseObj.size[1]]);  //向下對齊
+            }
+            //-----------------------------------更新座標
+            y+=lineHeight+lineSpace;
+            if(k<n) height+=lineSpace;
+        }
+        if(tblock.autoFitSize){
+            let newblock=[this.block[0],this.block[1],Math.max(tblock.limitRect[0],width),Math.max(tblock.limitRect[1],height)];
+            if(tblock.limitRect[2]!=null) newblock[2]=Math.min(newblock[2],tblock.limitRect[2]);
+            if(tblock.limitRect[3]!=null) newblock[3]=Math.min(newblock[3],tblock.limitRect[3]);
+            if(!ArrayEqual(newblock,this.block)){
+                this.setBlock(newblock);
+            }
+        }
+        return true;
+    }
 }
 class AnyBlock{
-    constructor(block){
+    constructor(tblock,block){
+        this.tblock=tblock;
         this.block=block;
     }
     inblock(rect){}
@@ -58,25 +139,46 @@ export class TBlock{          //內部描述區塊
         this.tcontrol=tmodel.tcontrol;
         this.lineHeight=lineHeight;     //行高
         this.lineSpace=lineSpace;       //行距
-        //--------------------------------------------------------物件
+        //------------------------------------------------------------------------------物件
         this.relObjs=[];
         this.absObjs=[];
         this.brs=[];                  //放置 Br物件 用來快速跳行
-        //--------------------------------------------------------換行
+        //------------------------------------------------------------------------------換行
         this.auto_changeline=true;    //自動換行
         this.line_space=6;            //行距
-        //--------------------------------------------------------常用參數
+        //------------------------------------------------------------------------------常用參數
         this.isFocus=false;           //只要被鎖定，就一直是 true
+        this.events={};
+        //-----------------滑鼠
         this.mousePressing=false;     //只有自身被按下期間是 true
         this.index=0;
         this.selecting=[0,0];
-        //------------------------------------------------特殊屬性
-        this.enableChangeLine=true;      //允許自動換行
-        //------------------------------------------------輸入模式
+        //-----------------歷史紀錄
+        this.history=[];            //修改內容，[最前index,原TeString,新TeString,(atype='rel')]
+        this.hindex=-1;             //目前的階段
+        this.modifyn=0;             //從上一次被focus後，被改了幾次
+        this._recordHistory=true;   //是否記錄
+        //------------------------------------------------------------------------------特殊屬性
+        this.allowInputTypes=null;       //允許輸入的物件型態，null代表全部允許
+        this.allowOverWidth=false;       /*允許輸入的元素突破邊界
+                                           true :超出寬度->直接超出
+                                           false:超出寬度->若允許換行，將自動換行;否則退回上一步
+                                           */
+        this.allowOverHeight=true;      /*允許輸入的元素突破邊界
+                                           true :超出高度->直接超出
+                                           false:超出高度->退回上一步
+                                           */
+        this.allowChangeLine=true;       /*允許在任意情況下，[換行]這個行為
+                                           true :元素超出寬度時允許換行、允許 Br 物件換行
+                                           false:元素超出寬度且不可overflow時，退回上一步、Br無效
+                                           */
+        this.autoFitSize=false;          //自動依據元素排列調整自身寬高，限制在 limitRect 的範圍中
+        this.limitRect=[0,0,null,null];  // minW,minH,maxW,maxH
+        //------------------------------------------------------------------------------輸入模式
         this.input_funcs={};
         this.input_mode='text';
         let tblock=this;
-        this.addInputMethod('text',(char)=>{return new Char(tblock,{'char':char,'fontHeight':'30'});}); 
+        this.addInputMethod('text',(char)=>{return {'type':'char','char':char,'fontHeight':'30'};}); 
         this.inp_color='black';     //輸入指標顏色
         //-------------------------------------------------------- Composing 文字
         this.isComposing=false;  //是否編譯中
@@ -85,11 +187,20 @@ export class TBlock{          //內部描述區塊
         //-------------------------------------------------------- 設定block
         this.setBlock(block);
     }
-    setBlock(block){
+    //===================================================================================== Block
+    setBlock(block,limitRect=null){
         if(typeof block[0]=='number')
-            this.block=new RectBlock(block);
-        else this.block=new AnyBlock(block);
+            this.block=new RectBlock(this,block);
+        else this.block=new AnyBlock(this,block);
+        if(limitRect!=null) this.limitRect=limitRect;
+        else this.limitRect=[block[2],block[3],null,null];
         this.arrange();
+    }
+    getLineWidth(pos){
+        return this.block.getLineWidth(pos);
+    }
+    getBlock(){
+        return this.block.block;
     }
     //=====================================================================================輸入法
     setInputMethod(inputMethod){
@@ -101,25 +212,54 @@ export class TBlock{          //內部描述區塊
     }
     InputConvert(value,_mdict=null,input_mode=null){           // 輸入文字轉換
         if(input_mode==null) input_mode=this.input_mode;
-        let baseObj=this.input_funcs[this.input_mode](value);
-        if(_mdict!=null) baseObj.updateDict(_mdict);
-        return baseObj;
+        let bdict=this.input_funcs[this.input_mode](value);
+        if(_mdict!=null) Object.assign(bdict,_mdict);
+        return bdict;
     }
     //=====================================================================================添加與管理物件
-    insertObj(index,baseObj){
+    typeIsAllowed(baseObjType){
+        return this.allowInputTypes==null || this.allowInputTypes.includes(baseObjType);
+    }
+    insertObj(index,bdict){
         this.index=index;
-        this.addObj(baseObj,'rel');
+        return this.addObj(bdict,'rel');
     }
-    addObj(baseObj,atype='rel'){
-        if(atype=='rel'){
-            this.relObjs.splice(this.index,0,baseObj);
-            this.index++;
-        }else this.absObjs.push(baseObj);
-        //baseObj.setParent(this.tmodel);
+    addObj(bdict,atype='rel'){
+        if(this.typeIsAllowed(bdict['type'])){
+            let classObj=TElementRegistry[bdict['type']];
+            if(classObj!=undefined){
+                let baseObj=new classObj[0](this,bdict);
+                if(atype=='rel'){
+                    this.relObjs.splice(this.index,0,baseObj);
+                    //====================================================================特殊插入物件
+                    if(baseObj.type=='br'){
+                        let tblock=this;
+                        baseObj.addEvent('destroy',()=>{ArrayRemove(tblock.brs,baseObj);});
+                        //----------------------插入 brs
+                        let insertBr=false;
+                        let _bindex=this.index;
+                        for(let i=0;i<this.brs.length;i++){
+                            let bindex=this.getObjIndex(this.brs[i]);
+                            if(bindex>_bindex){
+                                this.brs.splice(i,0,baseObj);
+                                insertBr=true;
+                                break;
+                            }
+                        }
+                        if(!insertBr) this.brs.push(baseObj);
+                    }
+                    //====================================================================
+                    this.index++;
+                }else this.absObjs.push(baseObj);
+                //this.recordHistory();
+                return baseObj;
+            }else console.log(bdict['type']+'型別未在登記表中');
+        }
+        return null;  //代表創建失敗
     }
-    addObjs(baseObjs,atype='rel'){
-        if(!Array.isArray(baseObjs)) baseObjs=[baseObjs];
-        for(let i=0;i<baseObjs.length;i++) this.addObj(baseObjs[i],atype);
+    addObjs(bdicts,atype='rel'){
+        if(!Array.isArray(bdicts)) bdicts=[bdicts];
+        for(let i=0;i<bdicts.length;i++) this.addObj(bdicts[i],atype);
     }
     getObjIndex(baseObj){
         return this.relObjs.indexOf(baseObj);
@@ -134,8 +274,27 @@ export class TBlock{          //內部描述區塊
     destroy(){
         this.clear();
     }
-    //=====================================================================================滑鼠事件(視為真實點按)
-    onmousedown(relPos){
+    //=====================================================================================事件
+    trigger_event(eventname,event){
+        let events=this.events[eventname];
+        if(events){
+            for(let i=0;i<events.length;i++)
+                events[i][1](event);
+        }
+    }
+    newEvent(eventnameList){     //添加新事件集
+        if(typeof eventnameList=="string") eventnameList=[eventnameList];
+        for(let i=0;i<eventnameList.length;i++){
+            let eventname=eventnameList[i];
+            this.events[eventname]=[];
+        }
+    }
+    addEvent(eventname,callback,id=null){
+        if(this.events[eventname]==undefined) this.newEvent(eventname);
+        this.events[eventname].push([id,callback]);
+    }
+    //=================================================================滑鼠事件(視為真實點按)
+    onmousedown(relPos,event){
         this.isFocus=this.tcontrol.acquirefocus(this);
         if(this.isFocus){
             let inp=this.tcontrol.inp;
@@ -148,23 +307,28 @@ export class TBlock{          //內部描述區塊
                 this.render_selection();
             }else this.selecting[0]=index;
             this.index=index;
+            this.trigger_event('onmousedown',event);
             return this.index;
         }
         return null;
     }
-    onmousemove(relPos,event,show_deal=false){   //show_deal: 是否 顯示 對被選定的物件操作框
+    onmousemove(relPos,event,mouseup=false){   //show_deal: 是否 顯示 對被選定的物件操作框
         if(this.block.inblock([relPos[0],relPos[1],0,0]) && this.mousePressing){
             if(this.isFocus){
-                this.index=this.tap(relPos);this.selecting[1]=this.index;
-                //console.log('選定:',this.selecting);
+                this.index=this.tap(relPos);
+                this.selecting[1]=this.index;
                 this.render_selection();
                 //if(show_deal && this.selecting[0]==this.selecting[1]){
                     //------------------顯示[輸入游標]並閃爍
                 this.show_inp();
                 //}
-            }else if(this.tcontrol.nowtmodel==this.tmodel){
-                //---------------------進行[表格邊框]選定
-                if(show_deal){}
+                if(mouseup){
+                    this.trigger_event('onmouseup',event);
+                    if(this.selecting[0]!=this.selecting[1]) this.trigger_event('selectup',event);
+                }
+                else this.trigger_event('onmousemove',event);
+            }else if(this.tcontrol.nowtmodel==this.tmodel){    //-----------進行[表格邊框]選定
+                if(mouseup){}
             }
         }
     }
@@ -172,7 +336,7 @@ export class TBlock{          //內部描述區塊
         this.onmousemove(relPos,event,true);
         this.mousePressing=false;
     }
-    //=====================================================================================鍵盤事件(視為真實點按)
+    //=================================================================鍵盤事件(視為真實點按)
     keydown(event){
         if (event.ctrlKey) {                     // ctrl 事件
             if(this.selecting[0]!=this.selecting[1]){
@@ -249,50 +413,79 @@ export class TBlock{          //內部描述區塊
                 }
                 break;
         }
+        this.trigger_event('keydown',event);
         if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Backspace','Delete','Enter'].includes(event.code))
             this.show_inp();
     }
     input(event){
+        //--------------------------------------選擇檢查
+        if(this.selecting[0]!=this.selecting[1]){
+            this.delete(Math.min(...this.selecting),Math.max(...this.selecting));
+            this.selecting=[this.index,this.index];
+            this.tcontrol.hideAuxiliary();
+        }
+        //--------------------------------------繼承屬性
+        let tblock=this;
+        function charDict(char){
+            return defaultDict(tblock.InputConvert(char),copyDict(inherit_dict));
+        }
+        let inheritTek=this.find_telement(this.input_mode,-1,this.index-1);
+        let inherit_dict={};
+        if(-1<inheritTek && inheritTek<this.relObjs.length)
+            inherit_dict=this.relObjs[inheritTek].getDict();
+        //---------------------------------------輸入處理
         let value=this.tcontrol.inp.value;               // inp 的全 value
         if((!event.isComposing && isASCII(value))){      //直接英文輸入
-            let baseObj=this.InputConvert(value);  //字元轉 baseObj
-            this.addObj(baseObj,'rel');
+            let bdict=charDict(value);  //字元轉 baseObj
+            this.addObj(bdict,'rel');
             this.tcontrol.inp.clear();
         }else if(event.isComposing){
             if(!this.isComposing){
                 this.isComposing=true;
                 this.composingIndex=this.index;
             }
+            //let inheritTek=this.find_telement(this.input_mode,-1,this.composingIndex-1);
+            //let inherit_dict={'border-bottom':'1px dashed #000'};
+            //if(-1<inheritTek && inheritTek<this.relObjs.length)
+            //    Object.assign(inherit_dict,this.relObjs[inheritTek].getDict());
             //--------------------------------目標: composingBox 與 value 一樣長
             let i=0;       //逐字比較
             while (i<value.length){
                 if(this.composingBox.length<=i){     //若 value 超過 composingBox 的長度
-                    let baseObj=this.InputConvert(value[i]);
-                    this.composingBox.push([value[i],baseObj]);this.insertObj(this.composingIndex+i,baseObj);
+                    let baseObj=this.insertObj(this.composingIndex+i,charDict(value[i]));
+                    if(baseObj!=null){
+                        this.composingBox.push([value[i],baseObj]);
+                    }
                     i++;
                 }else if(this.composingBox[i][0]!=value[i]){     //可能是 value中段被刪除 或 value中段被新增
                     if(value.length>this.composingBox.length){   //value中段被新增
-                        let baseObj=this.InputConvert(value[i],{'border-bottom':'1px dashed #000'});
-                        this.insertObj(this.composingIndex+i,baseObj);this.composingBox.splice(i,0,[value[i],baseObj]);
+                        let baseObj=this.insertObj(this.composingIndex+i,charDict(value[i]));
+                        this.composingBox.splice(i,0,[value[i],baseObj]);
                         i++;
                     }else if(value.length<this.composingBox.length){
                         this.removeObj(this.composingBox[i][1]);this.composingBox.splice(i,1);
                         this.index=this.composingIndex+i;
                     }else{
                         this.removeObj(this.composingBox[i][1]);
-                        let baseObj=this.InputConvert(value[i],{'border-bottom':'1px dashed #000'});
-                        this.composingBox[i]=[value[i],baseObj];this.insertObj(this.composingIndex+i,baseObj);
+                        let baseObj=this.insertObj(this.composingIndex+i,charDict(value[i]));
+                        this.composingBox[i]=[value[i],baseObj];
                     }
                 }else i++;
             }
-            for(let u=0;u<this.composingBox.length;u++) this.composingBox[u][1].updateDict({'DU':'1'});
+            if(i<this.composingBox.length){  //代表後節文字被刪除
+                for(;i<this.composingBox.length;i++) this.removeObj(this.composingBox[i][1]);
+                this.composingBox=this.composingBox.slice(0,value.length);
+                this.index=this.composingIndex+value.length;
+            }
+            for(let u=0;u<this.composingBox.length;u++) this.composingBox[u][1].setDict({'DU':'1'});
         }
+        this.trigger_event('input',event);
         this.ashow_inp();
     }
     keyup(event){
         if (!event.isComposing && this.composingBox.length>0) { //event.code == 'Enter' || 
             for(let i=0;i<this.composingBox.length;i++)
-                this.composingBox[i][1].updateDict({'DU':'0'});
+                this.composingBox[i][1].setDict({'DU':'0'});
             this.index=this.composingIndex+this.composingBox.length;
             this.composingBox=[];
             this.tcontrol.inp.clear();
@@ -301,6 +494,7 @@ export class TBlock{          //內部描述區塊
             this.show_inp();
         }else if(this.composingBox.length==0)
             this.show_inp();
+        this.trigger_event('keyup',event);
     }
     //=====================================================================================內容屬性變更
     select(is_selected=true){                         //全選
@@ -319,8 +513,9 @@ export class TBlock{          //內部描述區塊
         }
         this.tmodel.renderData();
     }
-    setAttr(index=null,index2=null){
-
+    getSelection(){
+        let selecting=[Math.min(...this.selecting),Math.max(...this.selecting)];
+        return this.relObjs.slice(selecting[0],selecting[1]);
     }
     //=====================================================================================尋找 & 取得資訊
     find_telement(tetypes,direct=-1,index=null){ //tetypes:要找的型態們, direct:找的方向, index:從指定位置(含)開始找
@@ -347,9 +542,7 @@ export class TBlock{          //內部描述區塊
         let se=this.getDisplayRange();
         for(let i=se[0];i<se[1];i++){
             let baseObj=relObjs[i];
-            //if (telement.type=='br'){
-            //    continue;
-            //}
+            //if (telement.type=='br') continue;
             let rect=baseObj.getrect();
             if(y>=rect[1]-this.lineSpace && y<rect[1]+rect[3]){     //代表y符合
                 if(x>=rect[0] && x<rect[0]+rect[2]){     //代表x符合
@@ -369,6 +562,7 @@ export class TBlock{          //內部描述區塊
                 }
             }
         }
+        if(getTelement) return null;
         if(fit_y[0]!=null)
             return fit_y[0];
         return this.relObjs.length;
@@ -394,49 +588,14 @@ export class TBlock{          //內部描述區塊
         if(this.relObjs.length>0 && inRect(this.relObjs[0].getrect(),Rect)) si=0;
         return [si,ei];
     }
-    arrange(){              //重新定位 所有relObjs 的座標
-        //let start = performance.now(); // 開始時間
-        let pos=this.block.initPos;
-        let p=0;let k=0;const n=this.relObjs.length;
-        let lastBr=null;    //上一個br
-        this.block.enableChangeLine=this.enableChangeLine;
-        while (k<n){                
-            let h=this.lineHeight;       //默認該行行高
-            //取出一行，relObjs[p:k] , k==n 或 relObjs[k]為Br
-            while (k<n){
-                let baseObj=this.relObjs[k];
-                if(baseObj.type=='br') break;
-                h=Math.max(baseObj.size[1],h);
-                k++;
-            }
-            if(lastBr!=null) lastBr.setPos([pos[0],pos[1]+h-this.tcontrol.inp.size[1]]);
-            //開始排列
-            for(let i=p;i<k;i++){     //這個範圍裡面不會有 Br
-                let baseObj=this.relObjs[i];
-                let rect=[pos[0],pos[1],baseObj.size[0],h];
-                if(baseObj.type=='align')         //調整對齊
-                    rect[0]=baseObj.getAlignX(pos,i);
-                let voidPos=this.block.getVoidPos(rect,this.lineSpace);
-                if(voidPos==null) voidPos=[rect[0],rect[1]];
-                baseObj.setPos([voidPos[0],voidPos[1]+h-baseObj.size[1]]);  //向下對齊
-                pos=[voidPos[0]+rect[2],voidPos[1]];   //更新下一個座標
-            }
-            if(k<n){       //代表 relObjs[k]為Br
-                pos=this.block.getVoidPos([0,pos[1]+h+this.lineSpace]);  //新一行的起點
-                lastBr=this.relObjs[k];
-                lastBr.setPos(pos);
-            }
-            k++;     // k==n+1 或 relObjs[k]為Br的下一項
-            p=k;
-            if(k>=n && this.enableChangeLine){
-                if(this.tmodel.size[1]<pos[1]+h) this.tmodel.setHeight(pos[1]+h);
-            }
-        }
-        //console.log(`排列時間: ${(performance.now() - start).toFixed(3)}ms`);
-        this.tmodel.renderData();
-        //console.log('重新排列');
+    arrange(render=true){              //重新定位 所有relObjs 的座標
+        this.block.arrange();
+        if(render) this.tmodel.renderData();
     }
     render(Rect){             // 將自身內容繪製在 tmodel 上
+        //if(this.tmodel==this.tcontrol.mtmodel){
+        //    console.log('Rect:',Rect);
+        //}
         if(this.block.inDomain(Rect)){
             let se=this.getDisplayRange(Rect);
             //找尋最後
@@ -448,27 +607,31 @@ export class TBlock{          //內部描述區塊
     }
     show_inp(){              //------------------------顯示 tcontrol 的 inp 至自身指定位置
         let inp=this.tcontrol.inp;
-        let relPos=getRelPos(this.tcontrol,this.tmodel);
+        let relPos=this.tmodel.pos;
         let hideInp=false;
-        if(this.relObjs.length==0 || (this.index==0 && this.relObjs[0].type=='br')){       //首位
+        if(this.relObjs.length==0 || (this.index==0 && ['br','align'].includes(this.relObjs[0].type))){       //首位
             inp.setPos([relPos[0]+this.block.initPos[0]-2,relPos[1]+this.block.initPos[1]-2]);
             inp.setInputHeight(this.lineHeight);
         }else{
             //---------------------------依據上一個 char 設定 input 高度
             let hk=this.find_telement(this.input_mode,-1,this.index-1);
-            if(-1<hk && hk<this.relObjs.length)
+            let brk=this.find_telement('br',-1,this.index-1);
+            if(-1<hk && hk<this.relObjs.length && brk<hk)
                 inp.setInputHeight(this.relObjs[hk].size[1]);
+            else inp.setInputHeight(this.lineHeight);
             //---------------------------依據上一個元素設定位置
-            let baseObj;
-            if(this.index==0){
-                baseObj=this.relObjs[0];
-                inp.setPos([relPos[0]+baseObj.pos[0]-2,relPos[1]+baseObj.pos[1]+baseObj.size[1]-inp.size[1]]);
-            }else{
-                if(this.index>=this.relObjs.length) this.index=this.relObjs.length;
-                baseObj=this.relObjs[this.index-1];
-                if(baseObj.pos[0]>this.tmodel.size[0]) hideInp=true;
-                inp.setPos([relPos[0]+baseObj.pos[0]+baseObj.size[0]-2*this.tmodel.pd,
-                    relPos[1]+baseObj.pos[1]+baseObj.size[1]-inp.size[1]]);
+            if(this.index>=this.relObjs.length) this.index=this.relObjs.length;
+            //let baseObj;
+            let drect;
+            if(this.index==0 || ( this.relObjs[this.index-1].type=='br'
+                && this.index<this.relObjs.length && !['br','align'].includes(this.relObjs[this.index].type))){  //取右
+                drect=this.relObjs[this.index].getDisplayRect();
+                inp.setPos([relPos[0]+drect[0]-2,relPos[1]+drect[1]+drect[3]-inp.size[1]]);
+            }else{             //-------------------------------------------------------------取左               
+                drect=this.relObjs[this.index-1].getDisplayRect();
+                if(drect[0]>this.tmodel.size[0]) hideInp=true;
+                inp.setPos([relPos[0]+drect[0]+drect[2]-2*this.tmodel.devicePixelRatio,
+                    relPos[1]+drect[1]+drect[3]-inp.size[1]]);
             }
         }
         if(hideInp) inp.hide();
@@ -479,7 +642,8 @@ export class TBlock{          //內部描述區塊
         } 
     }
     ashow_inp(){this.arrange();this.show_inp();}
-    //=====================================================================================操作事件(基本)
+    //=========================================================================操作事件，結束後不會「重新排列」
+    //-----------------------------------------------------------------基本
     clear(){
         this.delete(0,this.relObjs.length);
     }
@@ -503,26 +667,9 @@ export class TBlock{          //內部描述區塊
         return true;
     }
     changeLine(index=null){
-        if(!this.enableChangeLine) return;
+        if(!this.allowChangeLine) return;
         if(index!=null) this.index=index;
-        let br=new Br(this,{'lineHeight':this.lineHeight});
-        let tblock=this;
-        br.addEvent('destroy',()=>{
-            ArrayRemove(tblock.brs,br);
-        });
-        this.addObj(br);
-        //----------------------插入 brs
-        let insertBr=false;
-        let _bindex=this.getObjIndex(br);
-        for(let i=0;i<this.brs.length;i++){
-            let bindex=this.getObjIndex(this.brs[i]);
-            if(bindex>_bindex){
-                this.brs.splice(i,0,br);
-                insertBr=true;
-                break;
-            }
-        }
-        if(!insertBr) this.brs.push(br);
+        this.addObj({'type':'br','lineHeight':this.lineHeight});
     }
     cut(range=null){
         if(range==null) range=this.selecting;
@@ -537,7 +684,7 @@ export class TBlock{          //內部描述區塊
         for(let i=range[0];i<range[1];i++){
             stringlist.push(this.relObjs[i].text);
         }
-        let copyTeString=teToString(this.relObjs.slice(range[0],range[1]));
+        let copyTeString=this.copyTeString(range[0],range[1]);
         let string=stringlist.join('');
         if(range[1]-range[0]>0){
             this.tcontrol.copy_string=string;
@@ -555,9 +702,16 @@ export class TBlock{          //內部描述區塊
             console.log('符合');
             this.inputTeString(this.tcontrol.copyTeString);
         }else this.inputText(pastedData);
-        this.show_inp();
+        this.ashow_inp();
     }
-    //=====================================================================================外接操作
+    //-----------------------------------------------------------------儲存格式
+    copyTeString(index1,index2){
+        return teToString(this.relObjs.slice(index1,index2));
+    }
+    inputTeString(teString){
+        let dbox=stringToTDict(teString);
+        this.addObjs(dbox,'rel');
+    }
     ToTeString(){
         return teToString(this.relObjs);
     }
@@ -565,42 +719,43 @@ export class TBlock{          //內部描述區塊
         this.clear();
         this.inputTeString(teString);
     }
-    //==================================================================輸入操作
-    inputTElements(telements){
-        this.addObjs(telements);this.arrange();
+    //==================================================================輸入
+    inputTElements(telement_bdicts){
+        this.addObjs(telement_bdicts);
     }
-    inputTeString(teString){
-        let dbox=stringToTDict(teString);
-        for(let i=0;i<dbox.length;i++){
-            let bdict=dbox[i];
-            let classObj=TElementRegistry[bdict['type']]
-            if(classObj!=undefined){
-                let baseObj=new classObj[0](this,bdict);
-                this.addObj(baseObj);
-            }else console.log(bdict['type']+'型別未在登記表中');            
-        }
-        this.arrange();
-    }
-    inputText(text='',arrange=true){
+    inputText(text=''){
         for(let i=0;i<text.length;i++){
             if(text[i]=='\n') this.changeLine();
             else this.addObj(this.InputConvert(text[i]));
         }
-        if(arrange) this.arrange();
     }
-    insertImage(src,_style=null){
-        _style=defaultStyle(_style,{'src':src,'maxWidth':this.block.getLineWidth()/2,'errorSrc':'image/image-not-found.png'});
-        let imageObj=new Image(this,_style);
-        let tblock=this;
-        //imageObj.addEvent('onload',()=>{tblock.arrange();});
-        this.addObj(imageObj,'rel');
+    insertImage(src,_dict=null){
+        _dict=defaultStyle(_dict,{'type':'image','src':src,'maxWidth':this.block.getLineWidth()/2,'errorSrc':'image/image-not-found.png'});
+        this.addObj(_dict,'rel');
     }
-    setAlign(align,ratio='align'){  //ratio='align':根據align變動; 'auto':定位至當前位置
-        let adict={'align':align,'ratio':ratio};
+    setAlign(align,ratio='align'){
+        // align=left,center,rght
+        // ratio='align':根據align左中右設置; 'auto':定位至當前位置
+        let adict={'type':'align','align':align,'ratio':ratio};
         if(ratio=='auto') adict['adjust']='1';
-        let alignObj=new Align(this,adict);
-        this.addObj(alignObj,'rel');
-        this.arrange();
-        //if(ratio=='auto'){alignObj.startAdjust();this.arrange();}
+        this.addObj(adict,'rel');
+    }
+    setHrLine(lineHeight){
+        this.changeLine();
+        this.addObj({'type':'hrline','lineHeight':lineHeight});
+        this.changeLine();
+    }
+    insertRectIBox(){         //插入方形輸入框
+        this.addObj({'type':'rectibox'});
+    }
+
+    //================================================================== 取得值
+    getText(chartype='char',charkey='char'){
+        let namebox=[];
+        let relObjs=this.relObjs;
+        for(let i=0;i<relObjs.length;i++){
+            if(relObjs[i].type==chartype) namebox.push(relObjs[i].bdict[charkey]);
+        }
+        return namebox.join('');
     }
 }

@@ -2,13 +2,15 @@ import { Canvas, defaultStyle, getRelPos } from "../ui/base.js";
 import { TElement,Char, TElementRegistry } from "./telement.js";
 import { TBlock } from "./tblock.js";
 import { Modal } from "../ui/widget.js";
-import { defaultDict, List_to_LString, LString_to_List, NumberList } from "../tool.js";
+import { defaultDict, Dict_to_DString, DString_to_Dict, fetchDict, fillMissingKeys, List_to_LString, LString_to_List, NumberArray } from "../tool.js";
 
 export class TModel extends Canvas{         //這是任意形狀的 TModel
-    constructor(tcontrol,pos,size,_style=null){
-        _style=defaultStyle(_style,{'background':'white','cursor':'text'});
+    constructor(tcontrol,mdict=null,pos=null,size,_style=null){
+        mdict=fillMissingKeys(mdict,{'background':'white'});
+        _style=defaultStyle(_style,{'background':mdict['background'],'cursor':'text'});
         super(tcontrol,pos,size,_style);
         this.tcontrol=tcontrol;
+        this.mdict=mdict;
         //----------------------------------------------------------基本參數
         this.is_selected=false;              //是否被選擇
         this.tblocks=[];                     //所有 tblocks
@@ -22,16 +24,30 @@ export class TModel extends Canvas{         //這是任意形狀的 TModel
         let tmodel=this;
         //---------------------------------------------------------- 滑鼠事件(視為真實點按)
         this.isFocus=false;       //是否存在 tblock 現在被 tcontrol focus 中
+        function convertToRelPos(event){
+            let apos=tmodel.getScreenPos();
+            return [(event.clientX-apos[0])/tcontrol.zoomRate,(event.clientY-apos[1])/tcontrol.zoomRate];
+        }
         this.addEvent('onmousedown',function (event){
-            if(event.button==0){
-                let apos=tmodel.getAbsPos();
-                let relPos=[event.clientX-apos[0],event.clientY-apos[1]]; //[鼠標]相對於[自身左上角]的 pos
+            //if(event.button==0){
+                tcontrol.hideAuxiliary();
+                let relPos=convertToRelPos(event); //[鼠標]相對於[自身左上角]的 pos
                 for(let i=0;i<tmodel.tblocks.length;i++){
-                    if(tmodel.tblocks[i].onmousedown(relPos)!=null) tmodel.nowtblock=tmodel.tblocks[i];
+                    if(tmodel.tblocks[i].onmousedown(relPos,event)!=null) tmodel.nowtblock=tmodel.tblocks[i];
                 }
-            }
+            //}
             tmodel.isFocus=tcontrol.nowtmodel==tmodel;
         });
+        this.addEvent('ondblclick',function (event){
+            let choosedTelement=null;
+            let relPos=convertToRelPos(event);         //[鼠標]相對於[自身左上角]的 pos
+            for(let i=0;i<tmodel.tblocks.length;i++){
+                choosedTelement=tmodel.tblocks[i].tap(relPos,true);
+            }
+            if(choosedTelement!=null) {
+                tcontrol.tetfr.transformTElement(choosedTelement);
+            }
+        })
         this.addEvent('contextmenu', function(event) {
             if(tmodel.rightclick_func!=null) tmodel.rightclick_func(event);
             tmodel.nowtblock.show_inp();
@@ -39,7 +55,10 @@ export class TModel extends Canvas{         //這是任意形狀的 TModel
         this.rightclick_func=null;
         //----------------------------------------------------------
         this.type='tmodel';
-        //this.addEvent('resize',(size)=>{console.log('tmodel大小便更');});
+    }
+    setDict(_mdict=null){
+        if(_mdict!=null) Object.assign(this.mdict,_mdict);
+        this.setStyle({'background':this.mdict['background']});
     }
     //=====================================================================================新增 擴充
     setRightClick(func){
@@ -53,71 +72,162 @@ export class TModel extends Canvas{         //這是任意形狀的 TModel
         this.is_selected=is_selected;
         for(let i=0;i<this.tblocks.length;i++) this.tblocks[i].select(is_selected);
     }
-    arrange(){
-        for(let i=0;i<this.tblocks.length;i++) this.tblocks[i].arrange();
-    }
     //=====================================================================================渲染 自身
     getDisplayRect(){                 //目前能看見的區域
-        let apos=this.getAbsPos();
-        return [0,-apos[1]-200,this.size[0],1080];
+        let apos=this.getScreenPos();
+        let y=-apos[1]/this.tcontrol.zoomRate-200
+        return [0,y,this.size[0],screen.height+400];
+    }
+    setPos(pos){      //當自身座標被移動時，重新排列並渲染自身
+        super.setPos(pos);
+        //console.log('tmodel setPos');
+        for(let i=0;i<this.tblocks.length;i++) this.tblocks[i].arrange(false);
+        this.renderData();
     }
     renderData(rect=null){             //將自身儲存的資料結構(tblock內特定位置內容渲染出來)
+        // 這個 rect 是讓自身內部 在此 rect 範圍內的物件顯示，該 rect 是原大小，不計入縮放
+        //console.log('目前時間:',performance.now());
         let start=performance.now();
+        this.setPixelDensity(this.devicePixelRatio*this.tcontrol.zoomRate);
         if(rect==null) rect=this.getDisplayRect();
         if(this.is_selected) this.drawRect(rect,'skyblue');
         else this.clearRect(rect);
+        this.text_times=0;
         //console.log(`清空時間: ${(performance.now() - start).toFixed(3)}ms`);
         start=performance.now();
         for(let i=0;i<this.tblocks.length;i++){
             this.tblocks[i].render(rect);
         }
+        //console.log('文字次數:',this.text_times);
         //console.log(`渲染時間: ${(performance.now() - start).toFixed(3)}ms`);
     }
+    drawText(text,pos,maxWidth=null){
+        super.drawText(text,pos,maxWidth);
+        this.text_times++;
+    }
     //=====================================================================================儲存 與 載入
+    getDict(){
+        //let teStringBox=[];
+        //for(let i=0;i<this.tblocks.length;i++) teStringBox.push(this.tblocks[i].ToTeString());
+        //this.mdict['tblocks']=List_to_LString(teStringBox);
+        return this.mdict;
+    }
     ToTmString(){
-        let teStringBox=[];
-        for(let i=0;i<this.tblocks.length;i++) teStringBox.push(this.tblocks[i].ToTeString());
-        return List_to_LString(teStringBox);
+        //return Dict_to_DString(this.getDict());
     }
     LoadTmString(tmString){
-        let teStringBox=LString_to_List(tmString);
-        for(let i=0;i<teStringBox.length;i++) this.tblocks[i].LoadTeString(teStringBox[i]);
+        //this.mdict=DString_to_Dict(tmString);
+        //this.setDict();
+        //let teStringBox=LString_to_List(this.mdict['tblocks']);
+        //for(let i=0;i<teStringBox.length;i++){
+        //    this.tblocks[i].LoadTeString(teStringBox[i]);
+        //    this.tblocks[i].arrange(false);
+        //}
+        //this.renderData();
     }
 }
 export class RectModel extends TModel{   //----------------------------------方形 TModel，只有一個 tblock
-    constructor(tcontrol,pos,size,_style=null){
-        super(tcontrol,pos,size,_style);
-        this.addTBlock([0,0,this.size[0],this.size[1]]);
+    constructor(tcontrol,mdict=null,pos=null,size=null,_style=null){
+        mdict=fillMissingKeys(mdict,{
+            'fontFamily':'Arial','fontHeight':'30','color':'black',            // 默認輸入 char 屬性
+            'lineHeight':'30','inpcolor':'black','lineSpace':'6',              // 默認 tblock 輸入屬性
+            //------------------------ tblock設定
+            'allowInputTypes':'null',
+            'allowOverWidth':'0',
+            'allowOverHeight':'1',
+            'allowChangeLine':'1',
+            'autoFitSize':'1',
+            //------------------------ 外觀
+            'padding':'0,0',
+        });
+        super(tcontrol,mdict,pos,size,_style);
+        let padding=NumberArray(mdict['padding']);
+        let rectBlock=[padding[0],padding[1],this.size[0]-padding[0]*2,this.size[1]-padding[1]*2];
+        this.addTBlock(rectBlock);
         this.nowtblock=this.tblocks[0];
-        //------------------------------------------------------------------設置 padding
-        this.padding=[0,0];
-        //------------------------------------------------------------------尺寸變更事件
+        //------------------------------------------------------------------ 更新自身屬性
+        this.setDict();
+        this.nowtblock.addInputMethod('char',(char)=>{
+            return {'char':char,'type':'char',
+                'fontFamily':mdict['fontFamily'],'fontHeight':mdict['fontHeight'],'color':mdict['color']};
+        },true);
+        //------------------------------------------------------------------ 尺寸變更事件
         let tmodel=this;
-        this.addEvent('resize',(size)=>{tmodel.setPadding(tmodel.padding);});
-        //------------------------------------------------------------------
-        this.type='rectmodel';
+        this.nowtblock.addEvent('setblock',(block)=>{
+            tmodel.setSize([block[2]+tmodel.padding[0]*2,block[3]+tmodel.padding[1]*2]);
+        });
     }
-    setPadding(padding){
-        this.nowtblock.setBlock([padding[0],padding[1],this.size[0]-padding[0]*2,this.size[1]-padding[1]*2]);
-        this.padding=padding;
+    setDict(_mdict=null){
+        super.setDict(_mdict);
+        let nowtblock=this.nowtblock;
+        let mdict=this.mdict;
+        //---------------------------------------------------預設 基本輸入型態
+        nowtblock.lineHeight=parseInt(mdict['lineHeight']);
+        nowtblock.lineSpace=parseInt(mdict['lineSpace']);
+        nowtblock.inp_color=mdict['inpcolor'];
+        //------------------------------------------------------------------設置 padding
+        this.padding=NumberArray(mdict['padding']);
+        //------------------------------------------------------------------ tblock 設定
+        if(mdict['allowInputTypes']=='null') nowtblock.allowInputTypes=null;
+        else nowtblock.allowInputTypes=mdict['allowInputTypes'].split(',');
+        nowtblock.allowOverWidth=mdict['allowOverWidth']=='1';
+        nowtblock.allowOverHeight=mdict['allowOverHeight']=='1';
+        nowtblock.allowChangeLine=mdict['allowChangeLine']=='1';
+        nowtblock.autoFitSize=mdict['autoFitSize']=='1';
+    }
+    getInnerWidth(){
+        return this.nowtblock.getLineWidth(null);
+    }
+    getDict(){
+        this.mdict['nowtblock']=this.nowtblock.ToTeString();
+        return this.mdict;
+    }
+    ToTmString(){
+        return Dict_to_DString(this.getDict());
+    }
+    LoadTmString(tmString){
+        this.mdict=DString_to_Dict(tmString);
+        this.setDict();
+        let teString=this.mdict['nowtblock'];
+        this.nowtblock.LoadTeString(teString);
+        this.nowtblock.arrange(false);
+        this.renderData();
+    }
+}
+export class RectTextModel extends RectModel{   //-----------------------------方形[純文字]輸入框
+    constructor(tcontrol,mdict=null,pos=null,size=null,_style=null){
+        mdict=fillMissingKeys(mdict,{
+            'allowInputTypes':'char',
+        });
+        super(tcontrol,mdict,pos,size,_style);
+    }
+    inputText(text){
+        this.nowtblock.inputText(text);
+        this.nowtblock.arrange();
+    }
+    getText(chartype='char',charkey='char'){
+        return this.nowtblock.getText(chartype,charkey);
     }
 }
 
 export class DemoModel extends RectModel{       //一個用於展示各種 TModel 功能的物件
-    constructor(tcontrol,pos,size,_style=null){
-        super(tcontrol,pos,size,_style);
+    constructor(tcontrol,mdict=null,pos=null,size=null,_style=null){
+        super(tcontrol,mdict,pos,size,_style);
         let tmodel=this;
         tcontrol.addMenu(0,'demo_insert',[
             ['貼上',function (event){tmodel.nowtblock.paste();}],
             ['插入圖片',function (event){imgModal.launch();}],
-        //    ['文字方塊',function (event){tmodel.insert_table(1,1);}],
+            //['文字方塊',function (event){
+            //    tmodel.nowtblock.insertRectIBox();
+            //    tmodel.nowtblock.arrange();
+            //}],
         //    ['插入表格',function (event){tmodel.insert_table(5,5);}],
         //    ['屬性&ensp;&ensp;▶','file']
         ]);
         let imgModal=new Modal(this,'插入圖片',['50%',300],function (){
             let img_path=textctrl_imgpath.value.replace('\\','/');
             if(img_path!='')
-            tmodel.nowtblock.insertImage(upload_src,{'dsrc':img_path});
+            tcontrol.nowtblock.insertImage(upload_src,{'dsrc':img_path});
         });
         imgModal.loadHTML(`<input placeholder="輸入圖片網址" style="width:90%;font-size:1rem;" id='textctrl_imgurl'><br/><br/><br/>
                             <input type="file" id='textctrl_imgupload'><br/><br/>
@@ -161,6 +271,7 @@ export class DemoModel extends RectModel{       //一個用於展示各種 TMode
             event.preventDefault();
             tcontrol.cm.show('demo_insert',event);
         });
+        this.nowtblock.autoFitSize=true;
     }
 }
 export var TModelRegistry={         //[類別名]對應 : [類別,主鍵] 或 [類別,null]
@@ -169,85 +280,84 @@ export var TModelRegistry={         //[類別名]對應 : [類別,主鍵] 或 [�
 };
 //========================================================================================= 以下為TModelTElement
 export class TModelTElement extends TElement{         //用 TElement 包裝 [一個] 任意類型的 TModel
-    constructor(tblock,bdict,tmodel_class=null){
+    //----佔用 bdict: size, bgcolor, border, tmContent
+    //---- tmodel 與 TElement 共用 bdict
+    constructor(tblock,bdict,tmodel_class=null,loadTmString=false){
         if(tmodel_class==null) tmodel_class=TModel;
-        bdict=defaultDict(bdict,{'size':'30,30','bgcolor':'silver','border':'0'});
+        bdict=defaultDict(bdict,{'size':'30,30','border':'0'});
         super(tblock,bdict);
+        this.newEvent('resize');
         //----------------------------------------------------- 基本參數
-        this.size=NumberList(this.bdict['size']);
+        this.size=NumberArray(this.bdict['size']);
         //----------------------------------------------------- 建構內部 Tmodel
         let tmTElement=this;
         let tmodelStyle={'background-color':this.bdict['bgcolor'],'border':'0px'};
         if(this.bdict['border']=='1') tmodelStyle['border']='1px black solid';
-        let tmObj=new tmodel_class(tblock.tcontrol,null,this.size,tmodelStyle);
+        let tmObj=new tmodel_class(tblock.tcontrol,this.bdict,null,this.size,tmodelStyle);
         tmObj.addEvent('resize',(size)=>{
-            tmTElement.size=size;
-            tmTElement.bdict['size']=size[0]+','+size[1];
+            tmTElement.setSize(size);
+            tmTElement.trigger_event('resize',size);
             tblock.arrange();
         });
         this.tmObj=tmObj;
+        this.nowtblock=tmObj.nowtblock;
         //----------------------
-        if(this.bdict['tmContent']!=undefined) this.tmObj.LoadTmString(this.bdict['tmContent']);
         this.addEvent('destroy',()=>{tmObj.destroy();});
+        if(loadTmString) this.loadTmString();
     }
-    setSize(size){      //-----------------------------根據 tmObj 的 resize事件，這將會一併觸發 TElement 的setSize
-        this.tmObj.setSize(size);
+    setPos(pos){
+        this.pos=pos;
+        let relPos=this.tmodel.pos;
+        this.tmObj.setPos([relPos[0]+this.pos[0],relPos[1]+this.pos[1]]);
     }
+    setSize(size){
+        this.size=size;
+        this.bdict['size']=size[0]+','+size[1];
+    }
+    //-----------------------------------------------------------------渲染
     select(is_selected){
         super.select(is_selected);
         this.tmObj.select(is_selected);
     }
-    //-----------------------------------------------------------------渲染
-    render(){
-        let relPos=getRelPos(this.tmodel.tcontrol,this.tmodel);
-        this.tmObj.setPos([relPos[0]+this.pos[0],relPos[1]+this.pos[1]]);
-        this.tmObj.arrange();
+    render(){  //在 tmodel 設定 pos 時，就已經排列並渲染好了
+        
+    }
+    //-----------------------------------------------------------------
+    loadTmString(tmString=null){
+        if(tmString==null) tmString=this.bdict['tmString'];
+        if(tmString){
+            this.tmObj.loadTmString(tmString);
+            return true;
+        }
+        return false;
     }
     getDict(){
-        this.bdict['tmContent']=this.tmObj.ToTmString();
-        return this.bdict;
+        return this.tmObj.getDict();
     }
 }
-export class InputRectBox extends TModelTElement{     //---------------------------方形輸入框元素
+export class RectIBox extends TModelTElement{     //---------------------------方形輸入框元素
     constructor(tblock,bdict){
-        bdict=defaultDict(bdict,{
-            'fontFamily':'Arial','fontHeight':'30','color':'black',            // char   屬性
-            'lineHeight':30,'inpcolor':'black',                                // tblock 屬性
-            'size':'50,30','padding':'5,5','bgcolor':'yellow','border':'0'     // tmodel 屬性
-        });
+        // tmodel 屬性
+        bdict=defaultDict(bdict,{'size':'50,30','padding':'5,5','background':'yellow','border':'0'});
         super(tblock,bdict,RectModel);
         //------------------------------------------------------ 基本參數
-        this.padding=NumberList(this.bdict['padding']);
-        this.tmObj.setPadding(this.padding);
         this.nowtblock=this.tmObj.nowtblock;
-        //---------------------------------------------------預設 基本輸入型態
-        let irb=this;
-        this.nowtblock.addInputMethod('char',(char)=>{
-            return new Char(irb.nowtblock,{'char':char,
-                'fontFamily':bdict['fontFamily'],'fontHeight':bdict['fontHeight'],'color':bdict['color']});
-        },true);
-        //------------------------------------------------------
-        this.nowtblock.lineHeight=parseInt(this.bdict['lineHeight']);
-        this.nowtblock.inp_color=this.bdict['inpcolor'];
     }
-    //----------------------------------------------------------------外觀
-    setPadding(padding){
-        this.bdict['padding']=padding[0]+','+padding[1];
-        this.tmObj.setPadding(padding);
+}
+export class TextIBox extends TModelTElement{           // [單行]文字輸入框
+    constructor(tblock,bdict){
+        bdict=defaultDict(bdict,{'size':'50,30','padding':'5,5','background':'yellow','border':'0'});
+        super(tblock,bdict,RectTextModel);
+        //-------------------------------------------------- 如果目前沒 content 可以載入，就用text初始化
+        if(!this.tmObj.loadTmString() && this.bdict['text'])
+            this.inputText(this.bdict['text']);
     }
     //-----------------------------------------------------------------外部接口
     inputText(text){
-        this.nowtblock.inputText(text);
+        this.tmObj.inputText(text);
     }
-}
-export class InputTextBox extends InputRectBox{           // [單行]文字輸入框
-    constructor(tblock,bdict){
-        bdict=defaultDict(bdict,{'padding':'5,0'});
-        super(tblock,bdict);
-        this.nowtblock.enableChangeLine=false;
-        //-------------------------------------------------- 如果目前沒 content 可以載入，就用text初始化
-        if(this.bdict['tmContent']==undefined && this.bdict['text'])
-            this.inputText(this.bdict['text']);
+    getText(chartype='char',charkey='char'){
+        return this.tmObj.getText(chartype,charkey);
     }
 }
 
@@ -284,5 +394,5 @@ export class Table extends TModel{
         ]);
     }
 }
-TElementRegistry['inputrectbox']=[InputRectBox,null];
-TElementRegistry['inputtextbox']=[InputTextBox,'text'];
+TElementRegistry['rectibox']=[RectIBox,null];
+TElementRegistry['textibox']=[TextIBox,'text'];

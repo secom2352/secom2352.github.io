@@ -1,5 +1,5 @@
 import { Dict_to_DString, DString_to_Dict, HtmlElement, VoidElement,Path,void_function,
-    save_file, upload_file, upload_folder,html_img} from "../tool.js";
+    saveFile, uploadFile, uploadFolder,html_img} from "../tool.js";
 import { ContextMenu } from "./base.js";
 
 
@@ -314,7 +314,7 @@ export class ExtendBar extends FolderBar{
             ['上傳&ensp;&ensp;▶','upload_bar','hover'],
             ['下載',function (event){
                 let bar=eb.getbar();
-                save_file(bar.name,bar.ToString(),'text');
+                saveFile(bar.name,bar.ToString(),'text');
             }],
             'hr',
             ['貼上',function (event){}],
@@ -330,12 +330,12 @@ export class ExtendBar extends FolderBar{
         ]);
         customMenu.addMenu(1,'upload_bar',[
             ['檔案',function(event){
-                upload_file(function(file){
+                uploadFile(function(file){
                     eb.add_file(eb.folderpath+'/'+file.name);
                 });
             }],
             ['資料夾',function(event){
-                upload_folder(function(files){
+                uploadFolder(function(files){
                     for(const file of files){
                         eb.add_file(eb.folderpath+'/'+file.webkitRelativePath);
                     }
@@ -413,7 +413,7 @@ export class ExtendBar extends FolderBar{
         let eb=this;
         this.set_btn(path,'download2',function (event){
             let bar=eb.getbar(path);
-            save_file(bar.name,bar.ToString(),'text');
+            saveFile(bar.name,bar.ToString(),'text');
         });
     }
     //為某個bar右方新增新功能圖標

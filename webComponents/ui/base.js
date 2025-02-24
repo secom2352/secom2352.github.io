@@ -1,4 +1,4 @@
-import {ArrayRemove, copy_dict, HtmlElement, styleString, void_function,defaultDict, ArrayFilter, vrotate} from "../tool.js";
+import {ArrayRemove, copyDict, HtmlElement, styleString, void_function,defaultDict, ArrayFilter, vrotate, NumberArray} from "../tool.js";
 
 
 // 添加默認屬性
@@ -81,12 +81,14 @@ export class Base{                           //所有面板元素的基礎基底
         let c=this._element;
         this.pos=[c.offsetLeft,c.offsetTop];
         this.size=[c.offsetWidth,c.offsetHeight];
-        //if(this.scale!=null){
-        //    this.pos[0]+=this.size[0]*(1-this.scale[0])/2;
-        //    this.pos[1]+=this.size[1]*(1-this.scale[1])/2;
-        //    this.size[0]*=this.scale[0];
-        //    this.size[1]*=this.scale[1];
-        //}
+        if(this.scale!=null){        //----------------------位置修正
+            this._element.style.left=this.pos[0]+this.size[0]*(this.scale[0]-1)/2+'px';
+            this._element.style.top=this.pos[1]+this.size[1]*(this.scale[1]-1)/2+'px';
+            //this.pos[0]+=this.size[0]*(1-this.scale[0])/2;
+            //this.pos[1]+=this.size[1]*(1-this.scale[1])/2;
+            this.size[0]*=this.scale[0];
+            this.size[1]*=this.scale[1];
+        }
     }
     updateRect(){    //更新狀態
         this.setStyle({'left':this._style['left'],'top':this._style['top'],
@@ -108,7 +110,7 @@ export class Base{                           //所有面板元素的基礎基底
         let parent=this.parent;
         if(_style==null) _style={};
         if(update_style) Object.assign(this._style,_style);
-        let style=copy_dict(this._style);
+        let style=copyDict(this._style);
 
         if(style['position']=='fixed'){
             let frame=this.getFrame();
@@ -183,9 +185,19 @@ export class Base{                           //所有面板元素的基礎基底
         this.setStyle(style);
     }
     //-----------------------------------------------------------座標
-    getAbsPos(){        //取得絕對座標
+    getScreenPos(){        //取得相對於螢幕左上角的座標
         let rect=this._element.getBoundingClientRect();
         return [rect.left,rect.top];
+    }
+    getAbsPos(){           //取得絕對座標
+        let pos=[this.pos[0],this.pos[1]];
+        let parent=this.parent;
+        while (parent!=-1){
+            pos[0]+=parent.pos[0];
+            pos[1]+=parent.pos[1];
+            parent=parent.parent;
+        }
+        return pos;
     }
     setAbsPos(abspos){   //設定絕對座標
         let apos=this.parent.getAbsPos();
@@ -225,6 +237,10 @@ export class Base{                           //所有面板元素的基礎基底
         this.setStyle(_style);
     }
     //------------------------------------------------------------------尺寸
+    setScale(scale){
+        this.scale=scale;
+        this.setStyle({'transform':`scale(${scale[0]},${scale[1]})`});
+    }
     //-----------------------------------------------------------實際
     setWidth(width){
         if(typeof width=='number') width+='px';
@@ -260,7 +276,7 @@ export class Base{                           //所有面板元素的基礎基底
     setColor(color){
         this.setStyle({'color':color});
     }
-    setAlpha(alpha){
+    setAlpha(alpha){   // alpha 介於 0~1
         this.setStyle({'opacity':alpha});
     }
     //------------------------------------------------------------------層
@@ -344,6 +360,8 @@ export class Base{                           //所有面板元素的基礎基底
                     this._element.onmouseup=(event)=>{base.trigger_event('onmouseup',event);};break;
                 case 'onclick':
                     this._element.onclick=(event)=>{base.trigger_event('onclick',event);};break;
+                case 'ondblclick':
+                    this._element.ondblclick=(event)=>{base.trigger_event('ondblclick',event);};break;
             }
         }
     }
@@ -366,16 +384,9 @@ export class Base{                           //所有面板元素的基礎基底
     stopPropagation(eventname){
         this.addEvent(eventname,(event)=>{event.stopPropagation();});
     }
-    enable(_enable){
+    enable(_enable=true){
         this._enable=_enable;
         this._element.disabled=!_enable;
-        //if(_enable){
-        //    //this.setStyle();
-        //}else{
-        //    //let hstyle=copy_dict(this._style);
-        //    //Object.assign(hstyle,{'color':'#cccccc'});
-        //    //this._element.style=styleString(hstyle);
-        //}
     }
     //----------------------------------------------------------------------------hover
     _enableHover(){      // hover只在該frame中有效
@@ -387,7 +398,7 @@ export class Base{                           //所有面板元素的基礎基底
                 hovering=true;
                 if(!set_hoverstyle){
                     if(base.hover_style!=null){
-                        let hstyle=copy_dict(base._style);
+                        let hstyle=copyDict(base._style);
                         Object.assign(hstyle,base.hover_style);
                         base._element.style=styleString(hstyle);
                     }
@@ -445,6 +456,7 @@ export class Base{                           //所有面板元素的基礎基底
     //----------------------------------------------------------------------------銷毀
     destroy(){
         //------------------------------刪除所有children
+        //console.log('children:',this.children);
         while(this.children.length>0){
             this.children[0].destroy();
         }
@@ -463,8 +475,12 @@ export class Canvas extends Base{
         this.ctx=this._element.getContext("2d");
         this.autoSetCanvasSize=true;         //自動調整內部Canvas尺寸
         this.bgcolor=null;
+        //--------------------------------------------快速格式
+        this.nowFontkey=null;      //目前書寫文字的 fontkey
+        this.ctxTransforming=false;   //自身 ctx 的屬性是否處於變換中
         //--------------------------------------------------------------精細度調整
-        this.pd=window.devicePixelRatio || 1;     //像素密度 Pixel density
+        this.devicePixelRatio=window.devicePixelRatio || 1;
+        this.pd=this.devicePixelRatio;     //像素密度 Pixel density
         const canvas=this;
         this.addEvent('resize',(size)=>{if(canvas.autoSetCanvasSize) canvas.setCanvasSize(size);});
         this.setCanvasSize(this.size);
@@ -473,8 +489,15 @@ export class Canvas extends Base{
         this._element.width =size[0]* this.pd;
         this._element.height =size[1]* this.pd;
     }
-    setPixelDensity(pd){
+    setPixelDensity(pd,changeCanvasSize=true){
         this.pd=pd;
+        this.nowFontkey=null;
+        if(changeCanvasSize) this.setCanvasSize(this.size);
+    }
+    newDraw(drawFunc){
+        this.ctx.save();
+        drawFunc();
+        this.ctx.restore();
     }
     //-------------------------------------------------------------------------------------矩形
     clearRect(rect=null){         //實際 rect ，非畫布 rect
@@ -501,15 +524,26 @@ export class Canvas extends Base{
         ctx.stroke();
     }
     //-------------------------------------------------------------------------------------文字
-    getCharWidth(char,font){
-        this.ctx.font=font;
+    getCharWidth(char,fontkey){
+        this.setFont(fontkey);
         return this.ctx.measureText(char).width;
     }
-    getTextFont(fontHeight,fontFamily){
-        return fontHeight*this.pd+'px '+fontFamily;
+    getFontkey(fontHeight,fontFamily,bold='0'){  //返回 字體高度,fontFamily組合的 key
+        if(bold=='0')
+            return fontHeight+'_'+fontFamily;
+        return fontHeight+'_'+fontFamily+'_B';
     }
-    setTextStyle(font,color){
-        this.ctx.font=font;
+    setFont(fontkey){
+        if(fontkey!=this.nowFontkey){
+            let ft=fontkey.split('_');
+            if(ft.length==2)
+                this.ctx.font=parseInt(ft[0])*this.pd+'px '+ft[1];
+            else this.ctx.font='bold '+parseInt(ft[0])*this.pd+'px '+ft[1];
+            this.nowFontkey=fontkey;
+        }
+    }
+    setTextStyle(fontkey,color){
+        this.setFont(fontkey);
         this.ctx.fillStyle=color;
     }
     drawText(text,pos,maxWidth=null){       //實際 pos、fontHeight，非畫布 pos、fontHeight
@@ -517,21 +551,29 @@ export class Canvas extends Base{
         if(maxWidth!=null) this.ctx.fillText(text,pos[0]*pd,pos[1]*pd,maxWidth*pd);
         else this.ctx.fillText(text,pos[0]*pd,pos[1]*pd);
     }
+    drawScaleText(text,pos,scale,maxWidth=null){       //實際 pos、fontHeight，非畫布 pos、fontHeight
+        const canvas=this;
+        this.newDraw(()=>{
+            canvas.ctx.scale(scale[0],scale[1]);
+            canvas.drawText(text,[pos[0]/scale[0],pos[1]/scale[1]],maxWidth/scale[0]);
+        });
+    }
     //-------------------------------------------------------------------------------------圖形
     drawImage(image,rect,dest=null){
         let pd=this.pd;
         if(dest==null)
             this.ctx.drawImage(image,rect[0]*pd,rect[1]*pd,rect[2]*pd,rect[3]*pd);
     }
-    blit(canvas,pos){}
+    blit(canvas,pos){
+    }
 }
 
 export class Panel extends Base{                              //空面板
     constructor(parent=-1,pos=null,size=null,_style=null){
         _style=defaultStyle(_style,{'padding':'0px'});
         super('div',parent,pos,size,_style);
-        let panel=this;
         //--------------------------------事件
+        let panel=this;
         this.newEvent(['onclick','ondblclick','contextmenu',
                        'paste','keydown','input','keyup',
                        'scroll']);
@@ -548,8 +590,6 @@ export class Panel extends Base{                              //空面板
     fill(bgcolor){
         this.setStyle({'background-color':bgcolor});
     }
-    //-------------------------------------------事件
-    
 }
 export function voidPanel(size){
     return new Panel(-1,null,size);
@@ -670,7 +710,7 @@ export class SwitchButton extends Button{
             sb.setSwitch(sb.switch,event);
         }
         super(parent,label,switch_click,pos,size,_style);
-        this.orig_style=copy_dict(this._style);
+        this.orig_style=copyDict(this._style);
         this.switch=false;
         this._switch_func=function(event){
             if(sb.switch) onEvent(event);
@@ -751,6 +791,9 @@ export class Select extends Base{
             choose_event(select._element.value);
         });
         this.type='select';
+    }
+    setValue(value){
+        this._element.value=value;
     }
 }
 
@@ -1044,8 +1087,8 @@ export class ContextMenu{
     show(name,event){
         event.preventDefault();
         this.hide();
-        let pos=[event.pageX+3,event.pageY+3];
-        this.show_at(name,pos,event);
+        let screenPos=[event.pageX+3,event.pageY+3];
+        this.show_at(name,screenPos,event);
     }
     show_below(name,obj,hr_offset=null,event=null){
         let rect=obj.getabsrect();
@@ -1069,20 +1112,21 @@ export class ContextMenu{
         if(event!=null) event.preventDefault();
         this.show_at(name,pos);
     }
-    show_at(name,pos,event=null){
+    show_at(name,screenPos,event=null){
         let Menu=this.menus[0][name];
-        //------------------------------------關閉其他Menu
+        let mScreenPos=Menu.getScreenPos();
+        //------------------------------------ 關閉其他Menu
         let frame=Menu.getFrame();
         frame.closeContextMenus();
-        //--------------------------------------------
-        let p=this.parent.getabsrect();
+        //------------------------------------ 如果 Menu 位置太低，就往上移動
         if(event!=null){
           event.preventDefault();
           let mrect=Menu.getrect();
           if(event.clientY+mrect[3]>body.height-5)
-              pos[1]-=event.clientY+mrect[3]-body.height+5;
+              screenPos[1]-=event.clientY+mrect[3]-body.height+5;
         }
-        Menu.show([pos[0]-p[0],pos[1]-p[1]]);
+        Menu.show([Menu.pos[0]+(screenPos[0]-mScreenPos[0]),
+                   Menu.pos[1]+(screenPos[1]-mScreenPos[1])]);
         this.showing=true;
     }
     hide(layer=0){
@@ -1105,7 +1149,123 @@ export class ContextMenu{
             }
         }
     }
-  }
+}
+
+export class TransFormer extends Panel{
+    constructor(parent){
+        super(parent,[0,0],[100,100],{'cursor':'pointer','z-index':'1'});
+        //====================================================================== 方向按鈕
+        let tfr=this;
+        let frame=this.getFrame();
+        let directs=[[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0]];
+        this.directBtns=[];
+        this.speed=1;     //拖洩速度
+        //-----------------------------------------------運算參數
+        let nowBtn=null;              //目前按下的按鈕
+        let lastPos=[0,0];            //上一個座標
+        this.transformObj=null;   //目前的變換物件 [物件,]
+        for(let i=0;i<directs.length;i++){
+            let direct=directs[i];
+            //------------------------------------------------建構按鈕
+            let btnStyle={};
+            if(direct[0]+direct[1]==0) btnStyle['cursor']='ne-resize';       //左上，右下
+            else if(direct[0]-direct[1]==0) btnStyle['cursor']='nw-resize';  //左下，右上
+            else if(direct[0]==0) btnStyle['cursor']='s-resize';             //上下
+            else if(direct[1]==0) btnStyle['cursor']='w-resize';             //左右
+            let btn=new DefaultButton(this,'',null,null,[16,16],btnStyle);
+            btn.direct=direct;
+            btn.addEvent('onmousedown',(event)=>{
+                lastPos=[event.pageX,event.pageY];
+                nowBtn=btn;
+                let cusorStyle={'cursor':btnStyle['cursor']};
+                //frame.setTemStyle(cusorStyle);
+                tfr.setAbsPos([0,0]);
+                tfr.setSize([frame.size[0]-50,frame.size[1]-50],cusorStyle)        //自身填滿屏幕
+                tfr.trigger_event('transformdown');
+            });
+            this.directBtns.push(btn);
+        }
+        //====================================================================== 旋轉按鈕
+        //let robtn=document.createElement('button');
+        //robtn.style="width: 32px;height: 32px;border-radius:16px;border: 1px solid #000;cursor:grab;position:absolute;top:0px;";
+        //robtn.innerHTML=html_img('rotate',[20,20]);
+        //robtn.cursor='grabbing';
+        //robtn.onmousedown=function (event){
+        //    if(rsr.telement!=null){
+        //        rsr.press_btn=robtn;
+        //        let angle=rsr.telement.get_dict()['rotate'];
+        //        if(angle==undefined) angle=0;
+        //        let rect=rsr.telement.get_rect();
+        //        rsr.telement.bdict['scale']=rect[3]+','+rect[2];
+        //        rsr.telement.transform('rotate',parseInt(angle)+90);
+        //    }
+        //    //rsr.press_btn=this;
+        //    //rsr.panel_cursor=rsr.panel.style.cursor;
+        //    //rsr.now_panel().style.cursor=this.cursor;
+        //    //resizer.style.cursor=this.cursor;
+        //}
+        //resizer.appendChild(robtn);
+        //this.robtn=robtn;
+        //document.body.appendChild(resizer);
+        //this.resizer=resizer;
+        //this.telement=null;          //未選定
+        
+        //====================================================================== transform事件
+        function transformup(){
+            if(nowBtn!=null && tfr.transformObj!=null){
+                tfr.setSize([0,0]);
+                nowBtn=null;
+                tfr.trigger_event('transformup');
+                tfr.locateBtns();
+            }
+        }
+        this.newEvent(['transformdown','transform','transformup']);
+        frame.addEvent('onmousemove',(event)=>{
+            if(nowBtn!=null && tfr.transformObj!=null){
+                if(event.buttons==0) transformup();
+                else{
+                    let nowPos=[event.pageX,event.pageY];
+                    let incSize=[(nowPos[0]-lastPos[0])*nowBtn.direct[0]*tfr.speed,
+                                 (nowPos[1]-lastPos[1])*nowBtn.direct[1]*tfr.speed];
+                    let transformDict={'size':[Math.max(0,tfr.transformObj[0].size[0]+incSize[0]),
+                                               Math.max(0,tfr.transformObj[0].size[1]+incSize[1])]};
+                    tfr.transformObj[1](transformDict);
+                    lastPos=nowPos;
+                    tfr.trigger_event('transform');
+                    this.locateBtns();
+                }
+            }
+        });
+        frame.addEvent('onmouseup',(event)=>{transformup();});
+        //-----------------------------------------------------------
+        this.hide();
+    }
+    locateBtns(){
+        let apos=this.transformObj[0].getAbsPos();
+        let size=this.transformObj[0].getComputedSize();
+        for(let i=0;i<this.directBtns.length;i++){
+            let btn=this.directBtns[i];
+            btn.setPos([apos[0]+size[0]/2+size[0]*btn.direct[0]/2-8,
+                        apos[1]+size[1]/2+size[1]*btn.direct[1]/2-8]);
+        }
+    }
+    transform(baseObj,transformFunc=null){
+        this.setAbsPos([0,0]);
+        this.show();
+        //---------------------------------------------
+        if(transformFunc==null)
+            transformFunc=(transformDict)=>{
+                baseObj.setSize(transformDict['size']);
+            }
+        this.transformObj=[baseObj,transformFunc];
+        this.locateBtns();
+        
+    }
+    hide(){
+        super.hide();
+        this.transformObj=null;
+    }
+}
 
 export function Wrap(parent,obj,wrap_class,size=null,_style=null){
     let container=new wrap_class(parent);
@@ -1119,7 +1279,7 @@ export function Wrap(parent,obj,wrap_class,size=null,_style=null){
         obj.setAlign('center','center');
     }
     return container;
-  }
+}
 
 export function sortObjs(obj_list,order_by){
     let box=[...obj_list];
@@ -1186,7 +1346,7 @@ class Anime{
 }
 
 export function getRelPos(baseObj,baseObj2){
-    let rect=baseObj._element.getBoundingClientRect();
-    let rect2=baseObj2._element.getBoundingClientRect();
-    return [rect2.left-rect.left,rect2.top-rect.top];
+    let rect=baseObj.getAbsPos();
+    let rect2=baseObj2.getAbsPos();
+    return [rect2[0]-rect[0],rect2[1]-rect[1]];
 }

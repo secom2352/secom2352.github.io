@@ -1,4 +1,4 @@
-import { ArrayRemove, copy_dict,getabsrect} from "../tool.js";
+import { ArrayRemove, copyDict,getabsrect} from "../tool.js";
 import { Base,Button,defaultStyle,Frame,Label,Panel, sortObjs, SwitchButton, voidPanel, Wrap} from "./base.js";
 
 //水管
@@ -291,7 +291,7 @@ export class DragObj extends Panel{
         });
         this.addEvent('onmouseup',function (event){dragEnd(event);});
         //-----------------------------------------------------------------
-        Object.assign(this.events,{'drag':[],'drag-start':[],'drag-end':[]});
+        Object.assign(this.events,{'drag':[],'drag-start':[],'drag-end':[],'move':[]});
         this.type='dragobj';
     }
     bind(obj){
@@ -311,10 +311,13 @@ export class DragObj extends Panel{
     }
     move(offset){
         //let rect=this.getrect();
+        let opos=[this.pos[0],this.pos[1]];
         if(this.limit_domain[0]!=null){
-            let drect=getabsrect(this.limit_domain[0]);
-            let orect=this.limit_domain[1];
+            let drect=getabsrect(this.limit_domain[0]);  //[x,y,w,h]
+            let orect=this.limit_domain[1];  //[左→,上↓,右→,下↓]
             drect=[drect[0]+orect[0],drect[1]+orect[1],drect[0]+drect[2]+orect[2],drect[1]+drect[3]+orect[3]];
+            // drect=[最左,最頂,最右,最底]
+            //此時 drect 為自身 arect 不可超出的矩形
             let arect=this.getabsrect();
             //nrect無法超出drect的範圍
             let npos=[Math.min(Math.max(drect[0],arect[0]+offset[0]),drect[2]-arect[2]),
@@ -322,7 +325,8 @@ export class DragObj extends Panel{
             offset=[npos[0]-arect[0],npos[1]-arect[1]];
         }
         super.move(offset);
-        return offset;
+        this.trigger_event('move',offset);
+        return [this.pos[0]-opos[0],this.pos[1]-opos[1]];
     }
 }
 export class ResizeObj extends Panel{
@@ -429,7 +433,7 @@ export class ResizeObj extends Panel{
     }
     //------------------------------------------------------------------動畫
     runAnime(anime_style,times,animeFunc=null){
-        let container_style=copy_dict(anime_style,['size']);
+        let container_style=copyDict(anime_style,['size']);
         this.container.runAnime(container_style,times,animeFunc);
         if(anime_style['size'])
             super.runAnime({'size':anime_style['size']},times);

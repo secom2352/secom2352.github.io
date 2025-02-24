@@ -1,4 +1,4 @@
-import { copy_dict, defaultDict, html_img, inRect, round } from "../tool.js";
+import { copyDict, defaultDict, html_img, inRect, NumberArray, round } from "../tool.js";
 import { defaultStyle, getRelPos, Label } from "../ui/base.js";
 import { DragObj } from "../ui/widget.js";
 
@@ -80,7 +80,7 @@ export function stringToTDict(teString){
     while (k<n){
         let isValue=readValue();
         if(isValue){
-            let bdict=copy_dict(idict);
+            let bdict=copyDict(idict);
             if(mainkey!=undefined) bdict[mainkey]=fetch;
             dbox.push(bdict);
         }
@@ -107,6 +107,7 @@ export class TElement{
         this.size=[0,0];
         this.events={'destroy':[]};
         //--------------------------------------------------- 基本參數
+        this.tblock=tblock;
         this.tmodel=tblock.tmodel;         //tmodel
         this.bdict=bdict;           //自身字典
         this.text='';               //自身被複製時的文字
@@ -116,17 +117,29 @@ export class TElement{
         this.bdict['type']=teType;
         this.type=teType;
     }
-    //---------------------------------座標
-    getrect(){
+    //====================================================================================== 座標/尺寸
+    getAbsPos(){
+        return this.tmodel.tcontrol.getAbsPosAfterZoom(this);
+    }
+    getComputedSize(){
+        let zoomRate=this.tmodel.tcontrol.zoomRate;
+        return [this.size[0]*zoomRate,this.size[1]*zoomRate];
+    }
+    //------------------------------------------------------------------
+    getrect(){  //回傳「真實」的座標及大小
         return [this.pos[0],this.pos[1],this.size[0],this.size[1]];
     }
+    getDisplayRect(){  //回傳「展示」的座標及大小
+        return [this.pos[0],this.pos[1],this.size[0],this.size[1]];
+    }
+    //-------------------------------------------------------------------
     setPos(pos){
         this.pos=pos;
     }
     setSize(size){
         this.size=size;
     }
-    //---------------------------------事件
+    //======================================================================================事件
     trigger_event(eventname,event){
         let events=this.events[eventname];
         for(let i=0;i<events.length;i++)
@@ -142,31 +155,26 @@ export class TElement{
     addEvent(eventname,callback,id=null){
         if(this.events[eventname]==undefined) this.newEvent(eventname);
         this.events[eventname].push([id,callback]);
-        if(this.events[eventname].length==1){
-            let base=this;
-            switch(eventname){
-                case 'onmousedown':
-                    this._element.onmousedown=(event)=>{base.trigger_event('onmousedown',event);};break;
-                case 'onmousemove':
-                    this._element.onmousemove=(event)=>{base.trigger_event('onmousemove',event);};break;
-                case 'onmouseup':
-                    this._element.onmouseup=(event)=>{base.trigger_event('onmouseup',event);};break;
-                case 'onclick':
-                    this._element.onclick=(event)=>{base.trigger_event('onclick',event);};break;
-            }
-        }
     }
     //---------------------------------銷毀
     destroy(){
         this.trigger_event('destroy');
     }
+    //-----------------------------------------------------------------------變形
+    transform(transformDict){
+        let size=transformDict['size'];
+        let maxWidth=this.tblock.getLineWidth(this.pos);
+        if(size[0]>maxWidth) size[0]=maxWidth;
+        this.setSize(size);
+    }
+    transformup(){}
     //-----------------------------------------------------------------------自身渲染畫布
     render(){}
     select(is_selected){
         this.is_selected=is_selected;
     }
     //-----------------------------------------------------------------------自身建構字典
-    updateDict(_dict=null){
+    setDict(_dict=null){
         if(_dict!=null) Object.assign(this.bdict,_dict);
     }
     getDict(){         //有些 telement 的 bdict 內容並非及時更新，可覆寫此函數
@@ -176,9 +184,16 @@ export class TElement{
 
 export class Char extends TElement{
     constructor(tblock,bdict=null){
-        bdict=defaultDict(bdict,{'fontFamily':'Arial','color':'black','fontHeight':30});
+        bdict=defaultDict(bdict,{
+            'fontFamily':'Arial',
+            'color':'black',
+            'fontHeight':30,
+            'scale':'1,1',
+            'B':'0',
+            'U':'0'
+        });
         super(tblock,bdict);
-        /*-------------------------------------------------------基本參數
+        /*------------------------------------------------------- 基本參數
         bdict['char']                //文字
               'fontFamily'           //字體
               'fontHeight'           //原文字高度
@@ -188,65 +203,73 @@ export class Char extends TElement{
               'B'                    //粗體
               'I'                    //斜體
               'U'                    //下底線
-        //-------------------------------------------------------塗寫畫布*/
-        let c=this.bdict['char'];                   //文字
-        let h=parseInt(this.bdict['fontHeight']);   //高度
-        //-----------------塗寫參數
-        let tmodel=this.tmodel;
-        this.font=tmodel.getTextFont(h,this.bdict['fontFamily']);
-        //-------------------------------測量原始文字
-        this.textSize=[tmodel.getCharWidth(c,this.font)/tmodel.pd,h];
-        this.size=[this.textSize[0],h];
-        this.wdh=this.size[0]/this.size[1];       //   w/h  比值
+        //------------------------------------------------------- 載入文字 */
+        this.loadCharInfo();
         //--------------------------------------------------------文字參數
-        //this.params=[1,1,0,];
-        this.text=c;
-        //this.bdict['type']='char';
-        //this.type='char';
+        this.text=this.bdict['char'];
+    }
+    //-------文字顯示形狀要素: char文字、fontFamily字型、
+    //-------文字顯示尺寸要素: fontHeight高度、scale縮放、size占空間尺寸(用來排列，不在字典中)
+    loadCharInfo(){      //--- 載入文字資訊
+        let tmodel=this.tmodel;
+        //-----------------------------------快取參數
+        this.fontHeight=parseInt(this.bdict['fontHeight']);           //高度
+        this.fontkey=tmodel.getFontkey(this.fontHeight,this.bdict['fontFamily'],this.bdict['B']);   //字型
+        this.char=this.bdict['char'];
+        this.color=this.bdict['color'];
+        //-------------------------------測量原始文字
+        this.charSize=[tmodel.getCharWidth(this.char,this.fontkey)/tmodel.pd,this.fontHeight];   //原始文字尺寸(未縮放)
+        this.loadTransform();
+    }
+    loadTransform(){  // scale 轉 scaleCharSize、size
+        this.scale=NumberArray(this.bdict['scale']);
+        if(this.bdict['scale']!='1,1'){
+            this.scaleCharSize=[this.charSize[0]*this.scale[0],this.charSize[1]*this.scale[1]];
+        }else this.scaleCharSize=[this.charSize[0],this.charSize[1]];           //charSize : 縮放後的原始文字大小
+        this.size=[this.scaleCharSize[0],this.scaleCharSize[1]];           //size     : 占用排列空間
+    }
+    setDict(_dict=null){
+        super.setDict(_dict);
+        if(_dict!=null){
+            let reloadKeys=['char','fontFamily','fontHeight'];
+            for(let i=0;i<reloadKeys.length;i++){
+                if(reloadKeys[i] in _dict){
+                    this.loadCharInfo();
+                    return;
+                }
+            }
+            if('B' in _dict) this.fontkey=this.tmodel.getFontkey(this.fontHeight,this.bdict['fontFamily'],_dict['B']);
+            if('color' in _dict) this.color=_dict['color'];
+            if('scale' in _dict) this.loadTransform();
+        }
+    }
+    transform(transformDict){
+        super.transform(transformDict);
+        this.setDict({'scale':this.size[0]/this.charSize[0]+','+this.size[1]/this.charSize[1]});
     }
     render(){
         let tmodel=this.tmodel;
-        if(this.is_selected){                            //被選擇
+        //================================================================== 被選擇
+        if(this.is_selected){
             tmodel.drawRect(this.getrect(),"lightblue");
         }else if(this.bdict['bgcolor'])
             tmodel.drawRect(this.getrect(),this.bdict['bgcolor']);
-        tmodel.setTextStyle(this.font,this.bdict['color']);
+        //================================================================== 繪製文字
+        //---------------------------------------------------- 設定縮放
+        tmodel.setTextStyle(this.fontkey,this.color);
+        //-----------------------------------------------------塗寫
         let y=this.pos[1]+this.size[1]*3/4;
-        tmodel.drawText(this.bdict['char'],[this.pos[0]+Math.max((this.size[0]-this.textSize[0])/2,0),y],this.size[0]);
+        let pos=[this.pos[0]+Math.max((this.size[0]-this.scaleCharSize[0])/2,0),y];
+        if(this.bdict['scale']!='1,1'){
+            tmodel.drawScaleText(this.char,pos,this.scale,this.size[0]);
+        }else tmodel.drawText(this.char,pos,this.size[0]);
+        //================================================================== 下底線
         if(this.bdict['DU']==1){
             y+=this.size[1]/4;
             tmodel.drawLine([this.pos[0],y],[this.pos[0]+this.size[0],y],'black',1,[5,3]);
-        }
-    }
-    updateDict(_dict=null){
-        if(_dict!=null){
-            Object.assign(this.bdict,_dict);
-            for(const [key, value] of Object.entries(_dict)){
-                switch(key){
-                    //case 'scale':        //文字 寬高縮放
-                    //    let scale=value.split(',');
-                    //    this.charScale=[parseInt(scale[0]),parseInt(scale[1])];
-                    //    transformChar=true;break;
-                    //case 'fontSize':            //當 scale 為 1:1時，文字高度為 fontSize 個 px
-                    //    this.fontSize=parseInt(value);transformChar=true;break;
-                    //case 'fontFamily':style_fetch['font-family']=value;break;
-                    //case 'color':style_fetch['color']=value;break;
-                    //case 'bgcolor':style_fetch['background-color']=value;break;
-                    //case 'B':
-                    //    if(value=='1') style_fetch['font-weight']='bold';
-                    //    else style_fetch['font-weight']='normal';
-                    //    break;
-                    //case 'I':
-                    //    if(value=='1') style_fetch['font-style']='italic';
-                    //    else style_fetch['font-style']='normal';
-                    //    break;
-                    //case 'U':
-                    //    if(value=='1') style_fetch['text-decoration']='underline';
-                    //    else style_fetch['text-decoration']='none';
-                    //    break;
-                    //case
-                }
-            }
+        }else if(this.bdict['U']=='1'){
+            y+=this.size[1]/4;
+            tmodel.drawLine([this.pos[0],y],[this.pos[0]+this.size[0],y],'black',1);
         }
     }
 }
@@ -260,29 +283,37 @@ export class Br extends TElement{
         //this.bdict['type']='br';
         //this.type='br';
     }
+    render(){
+        if(this.is_selected)                            //被選擇
+            this.tmodel.drawRect([this.pos[0],this.pos[1],5,this.size[1]],"lightblue");
+    }
 }
 
 export class Image extends TElement{
     constructor(tblock,bdict=null){
+        console.log('image取得:',bdict);
         super(tblock,bdict);
         let image=this;
         //-------------------------------------基本參數
         this.newEvent('onload');
+        this.size=[0,0];
         this.onload=false;
         //-------------------------------------載入 img
         let img=new window.Image();
         img.src =this.bdict['src'];
+        let sizeString=this.bdict['size'];
         img.onload = function() {
-            image.imageSize=[img.naturalWidth,img.naturalHeight];
-            image.size=[img.naturalWidth,img.naturalHeight];
+            image.imageSize=[img.naturalWidth,img.naturalHeight];    //原始尺寸
+            if(sizeString) image.size=NumberArray(sizeString);
+            else image.setSize([img.naturalWidth,img.naturalHeight]);
             if(image.bdict['maxWidth']){       //-------------------不超過最大寬度
                 let width=parseInt(image.bdict['maxWidth']);
-                if(image.imageSize[0]>width)
-                    image.size=[width,width*image.imageSize[1]/image.imageSize[0]];
+                if(image.size[0]>width)
+                    image.setSize([width,round(width*image.imageSize[1]/image.imageSize[0])]);
             }
             image.onload=true;
-            tblock.arrange();
             image.trigger_event('onload');
+            tblock.arrange();
         };
         img.onerror=function(){
             if(image.bdict['errorSrc']) img.src=image.bdict['errorSrc'];
@@ -292,6 +323,10 @@ export class Image extends TElement{
         this.bdict['type']='image';
         this.type='image';
     }
+    setSize(size){
+        this.size=size;
+        this.bdict['size']=size[0]+','+size[1];
+    }
     render(){
         if(this.onload){
             let rect=this.getrect();
@@ -299,11 +334,6 @@ export class Image extends TElement{
             if(this.is_selected){
                 this.tmodel.drawRect(rect,'rgba(173, 216, 230,0.5)');
             }
-        }
-    }
-    updateDict(_dict=null){
-        if(_dict!=null){
-            Object.assign(this.bdict,_dict);
         }
     }
 
@@ -317,6 +347,7 @@ export class Align extends TElement{
         this.size=[0,tblock.lineHeight];
         //------------------------------基本參數
         this.tblock=tblock;
+        this.tcontrol=this.tblock.tcontrol;
         this.alignN={'left':0,'center':0.5,'right':1}[this.bdict['align']];  //這與 ratio 不同，勿搞混
         this._adjust=false;        //是否[開啟]為調整中狀態
         //-------------------------------
@@ -328,10 +359,10 @@ export class Align extends TElement{
         if(this.bdict['ratio']=='auto') return pos[0];     //代表當前尚未定位完成
         let info=this.getAlignInfo(pos,nowIndex);
         let block=this.tblock.block;
-        let x=block.getLineStartX(pos)+block.getLineWidth(pos)*parseFloat(this.bdict['ratio']);
+        let x=block.getLineStartX(pos)+Math.floor(block.getLineWidth(pos)*parseFloat(this.bdict['ratio']));
         return Math.max(pos[0],x-info[1]*this.alignN);
     }
-    getAlignInfo(pos=null,nowIndex=null){         //取得 [前物件尾端x,自身包含物件寬度,結尾或下一個對齊起始x]
+    getAlignInfo(pos=null,nowIndex=null){//取得 相對於tmodel的[前物件尾端x,自身包含物件寬度,結尾或下一個對齊起始x]
         if(pos==null) pos=this.pos;
         if(nowIndex==null) nowIndex=this.tblock.relObjs.indexOf(this);
         //-----------------------最左
@@ -357,11 +388,11 @@ export class Align extends TElement{
     setPos(pos){
         super.setPos(pos);
         this.beArranged=true;     //第一次被排列
+        if(!this._adjust && this.bdict['adjust']=='1') this.startAdjust();
     }
     render(){                 //被排列後才能正確定位
         if(this.beArranged){
-            if(!this._adjust && this.bdict['adjust']=='1') this.startAdjust();
-            else if(this._adjust && this.align_dbj && !this.align_dbj.dragging){
+            if(this._adjust && this.align_dbj && !this.align_dbj.dragging){
                 this.locateDbj();
             }
         }
@@ -371,17 +402,25 @@ export class Align extends TElement{
             this.bdict['adjust']='1';
             this._adjust=true;
             //-----------------------------------------------------------------------開始布置
-            let align_dbj=new DragObj(this.tmodel.tcontrol,null,[16,16],{'cursor':'ew-resize'});
+            let align_dbj=new DragObj(this.tmodel.tcontrol.parent,null,[16,16],{'cursor':'ew-resize'});
             align_dbj.stopPropagation('onmousedown');
             let align_label=new Label(align_dbj,html_img('align-left',[20,20]),[2,0],[20,20],{'cursor':'ew-resize'});
             align_dbj.setlimit('hr',true);align_label.setAlign(null,'center');
             this.alabel=html_img('align-'+this.bdict['align'],[12,12]);
             //-------------------------------------------------------------設置拖動事件
             let _align=this;
+            let dragXRange=[0,0];  // 以body左上為[0,0]的[絕對座標] align_dbj 可左右滑動的限制
             align_dbj.setEvent('drag-start',function(event){
                 let info=_align.getAlignInfo(_align.pos);
-                align_dbj.setDomain(_align.tmodel,[info[0]+(info[1]-align_dbj.size[0])*_align.alignN,-50,
-                                                   info[2]-(info[1]-align_dbj.size[0])*(1-_align.alignN)-_align.tmodel.size[0],0]);
+                let zoomRate=_align.tcontrol.zoomRate;
+                info=[info[0]*zoomRate,info[1]*zoomRate,info[2]*zoomRate];
+                let mrect=_align.tmodel.getAbsPos();
+                dragXRange=[mrect[0]+info[0]+(info[1]-align_dbj.size[0])*_align.alignN,
+                            mrect[0]+info[2]-(info[1]-align_dbj.size[0])*(1-_align.alignN)];
+            });
+            align_dbj.setEvent('move',function(offset){
+                let arect=align_dbj.getabsrect();
+                align_dbj.setAbsX(Math.max(Math.min(arect[0],dragXRange[1]-arect[2]),dragXRange[0]));
             });
             align_dbj.setEvent('drag',function(offset){
                 let ratio=_align.getDbjRatio();
@@ -393,30 +432,35 @@ export class Align extends TElement{
             this.align_label=align_label;    //用來顯示當前比例(%)
             this.align_dbj=align_dbj;        //當前的移動方塊
             this.locateDbj();
-            this.bdict['ratio']=this.getDbjRatio();
+            if(this.bdict['ratio']=='auto')
+                this.bdict['ratio']=this.getDbjRatio();
         }
     }
     getDbjRatio(){       //依據 dbj 的 pos 換算ratio
         if(this._adjust){
-            let relPos=getRelPos(this.tmodel,this.align_dbj);
-            let x=relPos[0]+(this.align_dbj.size[0])*this.alignN;
+            let tpos=this.tcontrol.getAbsPosAfterZoom(this.tmodel);
+            let apos=this.align_dbj.getAbsPos();
+            let x=(apos[0]+this.align_dbj.size[0]*this.alignN-tpos[0])/this.tcontrol.zoomRate;
             let block=this.tblock.block;
             let startX=block.getLineStartX(this.pos);
             let lineWidth=block.getLineWidth(this.pos);
-            return round((x-startX)/lineWidth,4);
+            let ratio=(x-startX)/lineWidth;
+            if(ratio<0.001) ratio=0;   //以免有無法調到最左 0% 的情況
+            return Math.min(Math.max(round(ratio,4),0),1);
         }
     }
-    locateDbj(){       //將 ratio 換算成 dbj 應該定位的位置
+    locateDbj(){       //將 dbj 移動到 自身位置旁邊
         if(this._adjust){
-            let info=this.getAlignInfo();
-            let apos=this.tmodel.getAbsPos();
-            //--------------------------------尋找 dbj 的參照物件
+            ////--------------------------------尋找 dbj 的參照物件
             let referObj=this;
             let relObjs=this.tblock.relObjs;
             let nowIndex=relObjs.indexOf(this);
-            if(nowIndex+1<relObjs.length && relObjs[nowIndex+1].type!='br') referObj=relObjs[nowIndex+1];
-            this.align_dbj.setAbsPos([apos[0]+referObj.pos[0]+(info[1]-this.align_dbj.size[0])*this.alignN,
-                                      apos[1]+referObj.pos[1]-12]);
+            if(nowIndex+1<relObjs.length && !['br','align'].includes(relObjs[nowIndex+1].type)) referObj=relObjs[nowIndex+1];
+            //----------------------------------取得 參考物件 的 絕對座標
+            let referPos=this.tcontrol.getAbsPosAfterZoom(referObj);
+            let info=this.getAlignInfo();
+            this.align_dbj.setAbsPos([referPos[0]+(info[1]*this.tcontrol.zoomRate-this.align_dbj.size[0])*this.alignN,referPos[1]-12]);
+            //---------------------------------- 將座標換算當前 ratio
             let ratio=this.getDbjRatio();
             this.align_label.setLabel(this.alabel+'&ensp;'+round(ratio*100,1)+'%');
         }
@@ -432,9 +476,32 @@ export class Align extends TElement{
     }
 }
 
+export class HrLine extends TElement{
+    constructor(tblock,bdict){
+        bdict=defaultDict(bdict,{'color':'black','lineHeight':'1'});
+        super(tblock,bdict);
+        this.setSize([0,0]);
+    }
+    setPos(pos){
+        super.setPos(pos);
+        this.size[0]=this.tblock.getLineWidth(pos);
+    }
+    setSize(size){
+        this.size=[this.tblock.getLineWidth(this.pos),this.tblock.lineHeight];
+    }
+    render(){
+        if(this.is_selected)
+            this.tmodel.drawRect(this.getrect(),'lightblue');
+        let lineHeight=parseInt(this.bdict['lineHeight']);
+        this.tmodel.drawRect([this.pos[0],this.pos[1]+(this.size[1]-lineHeight)/2,
+                              this.size[0],lineHeight],this.bdict['color']);
+    }
+}
+
 export var TElementRegistry={         //[類別名]對應 : [類別,主鍵] 或 [類別,null]
     'char':[Char,'char'],
     'br':[Br,null],
     'image':[Image,'src'],
-    'align':[Align,'ratio']
+    'align':[Align,'ratio'],
+    'hrline':[HrLine,'lineHeight']
 };
