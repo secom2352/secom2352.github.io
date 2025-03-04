@@ -148,7 +148,7 @@ export function Invoice(api=null,params=null){
     panel.addEvent('resize',function(size){Tspace.setHeight(size[1]-navh);Tfilelist.setHeight(size[1]-navh);});
     //============================================================================面板物件
     let tctrl=new CTControl(Tspace);
-    tctrl.inputText('這是內容------123\n第二行的內容\nabcdefghijklmnopqrstuvwxyz');
+    //tctrl.inputText('這是內容------123\n第二行的內容\nabcdefghijklmnopqrstuvwxyz');
     //tctrl.setAlign('center');
     let filelist=new FileList(Tfilelist,tctrl,[0,0],['100%','90%']);
     //====================================================================操作按鈕
