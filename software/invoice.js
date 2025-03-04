@@ -1,12 +1,12 @@
-import { html_img,isASCII, defaultDict, fillMissingKeys, NumberArray} from "../webComponents/tool.js";
+import { html_img,isASCII, defaultDict, fillMissingKeys, NumberArray, copyDict} from "../webComponents/tool.js";
 //------------------------------------------------------------------------------ui
 import { body, Button, defaultStyle, DropdownButton, getRelPos, Label, Panel, ScrollInput, Select, SwitchButton, voidPanel } from "../webComponents/ui/base.js";
 import { ExtendBar } from "../webComponents/ui/extendbar.js";
 import { DragObj, NavBar, Tube, widget } from "../webComponents/ui/widget.js";
 //------------------------------------------------------------------------------textctrl
 import { TControl } from "../webComponents/textctrl/tcontrol.js";
-import { TElement,Char,Image, TElementRegistry} from "../webComponents/textctrl/telement.js";
-import { DemoModel, RectTextModel,TModelTElement} from "../webComponents/textctrl/tmodel.js";
+import { TElement,Char,Image, TElementRegistry, HrLine} from "../webComponents/textctrl/telement.js";
+import { DemoModel, RectIBox, RectTextModel,TModelTElement} from "../webComponents/textctrl/tmodel.js";
 
 
 class FileList{
@@ -148,7 +148,7 @@ export function Invoice(api=null,params=null){
     panel.addEvent('resize',function(size){Tspace.setHeight(size[1]-navh);Tfilelist.setHeight(size[1]-navh);});
     //============================================================================面板物件
     let tctrl=new CTControl(Tspace);
-    //tctrl.inputText('這是內容------123\n第二行的內容\nabcdefghijklmnopqrstuvwxyz');
+    tctrl.inputText('這是內容------123\n第二行的內容\nabcdefghijklmnopqrstuvwxyz');
     //tctrl.setAlign('center');
     let filelist=new FileList(Tfilelist,tctrl,[0,0],['100%','90%']);
     //====================================================================操作按鈕
@@ -174,19 +174,37 @@ export function Invoice(api=null,params=null){
                 tblock.changeLine();
                 tblock.arrange();
             }],
+            ['限制區塊',function (event){
+                let tblock=tctrl.nowtblock;
+                let limitblock=tblock.addObj({'type':'limitblock'});tblock.arrange();
+                tctrl.tetfr.transformTElement(limitblock);
+            }],
+            //['時間格式',function (event){}],
             ['圖形&ensp;&ensp;▶','graphics'],
+            ['裁切&ensp;&ensp;▶','cut_invoice'],
         ]);
         system_vars.addMenu(1,'graphics',[
+            ['文字虛線',function(event){tctrl.inputText('----------');}],
             ['水平線(細)',function(event){tctrl.setHrLine(1);}],
             ['水平線(中)',function(event){tctrl.setHrLine(2);}],
             ['水平線(粗)',function(event){tctrl.setHrLine(4);}],
+        ]);
+        function inputCutLine(cutType){
+            let tblock=tctrl.nowtblock;tblock.changeLine();
+            tblock.addObj({'type':'cutline','cutType':cutType});
+            tblock.changeLine();tblock.arrange();
+        }
+        system_vars.addMenu(1,'cut_invoice',[
+            ['半裁切',function(event){inputCutLine('halfcut')}],
+            ['全切',function(event){inputCutLine('cut');}],
         ]);
         dragTube.add_item(system_vars);
         //-------------------------------------------------------------一般變數
         function insert_var(key=null){
             if(key==null){key=now_var;now_var++;}
             tctrl.inputTElements({'type':'varname','varname':key+''});
-            tctrl.renderData();
+            //tctrl.nowtblock.arrange();
+            //tctrl.renderData();
         }
         let common_var=new DropdownButton(-1,'插入變數',{'background-color':'#555555'},null,null,ddb_style);
         common_var.setMainMenu([
@@ -258,6 +276,40 @@ class CTControl extends TControl{
         this.setEscWidth(parseInt(tcDict['escWidth']));
         this.clear();
         this.mtmodel.LoadTmString(tcDict['mtmodel']);
+    }
+}
+class LimitBlock extends RectIBox{
+    constructor(tblock,bdict=null){
+        super(tblock,bdict,CTModel);
+        this.tmObj.setStyle({'border':'1px black dashed'});
+        this.nowtblock.allowInputTypes=['epcode','image','br','align','varname','varimage'];
+        if(bdict['content']) this.tmObj.LoadTmString(bdict['content']);
+    }
+    getDict(){
+        let _dict=super.getDict();
+        _dict['content']=this.tmObj.ToTmString();
+        return _dict;
+    }
+}
+class CutLine extends HrLine{
+    constructor(tblock,bdict=null){
+        bdict=defaultDict(bdict,{'cutType':'cut','lineHeight':'3'});
+        super(tblock,bdict);
+    }
+    getDisplayRect(){
+        return [0,this.pos[1],this.tmodel.size[0],this.size[1]];
+    }
+    render(){
+        let tmodel=this.tmodel;
+        if(this.is_selected)
+            tmodel.drawRect(this.getDisplayRect(),'lightblue');
+        let lineHeight=parseInt(this.bdict['lineHeight']);
+        let y=this.pos[1]+(this.size[1]-lineHeight)/2;
+        let rect=this.getDisplayRect();
+        if(this.bdict['cutType']=='halfcut')
+            tmodel.drawLine([0,y],[this.tmodel.size[0],y],'red',lineHeight,[15,5]);
+        else
+            tmodel.drawLine([0,y],[this.tmodel.size[0],y],'red',lineHeight);
     }
 }
 class ForLoop extends TElement{
@@ -376,11 +428,27 @@ class VarName extends TModelTElement{
             'allowOverHeight':'0',
             'allowChangeLine':'0',
             'autoFitSize':'1',
-            'padding':'5,0'
+            'padding':'5,0',
+            //-------------------------文字屬性
+            'scale':'1,1',
+            'B':'0',
+            'U':'0',
+            'fontHeight':'24',
         });
         bdict['size']='10,24';  //重置尺寸
         super(tblock,bdict,VarModel,false);
-        if(bdict['varname']) this.nowtblock.inputText(bdict['varname']);
+        if(bdict['varname']){
+            this.nowtblock.inputText(bdict['varname']);
+            let textDict={'scale':this.bdict['scale'],
+                          'B':this.bdict['B'],
+                          'U':this.bdict['U'],
+                          'fontHeight':this.bdict['fontHeight']
+            };
+            this.updateByFunc((teObj)=>{
+                teObj.setDict(textDict);
+            });
+            this.nowtblock.arrange(false);
+        }
     }
     getVarName(){
         return this.tmObj.getVarName();
@@ -388,7 +456,23 @@ class VarName extends TModelTElement{
     getDict(){
         let _dict=super.getDict();
         _dict['varname']=this.getVarName();
+        //------------------------------------
+        let relObjs=this.nowtblock.relObjs;
+        if(relObjs.length>0){
+            let textDict=relObjs[0].getDict();
+            _dict['scale']=textDict['scale'];
+            _dict['B']=textDict['B'],
+            _dict['U']=textDict['U'],
+            _dict['fontHeight']=textDict['fontHeight'];
+        }
         return _dict;
+    }
+    updateByFunc(updateFunc){
+        let relObjs=this.nowtblock.relObjs;
+        for(let i=0;i<relObjs.length;i++){
+            relObjs[i].updateByFunc(updateFunc);
+        }
+        this.nowtblock.arrange(false);
     }
 }
 class CodeLine extends TModelTElement{
@@ -404,12 +488,16 @@ class CodeLine extends TModelTElement{
 
 class VarImage extends TElement{
     constructor(tblock,bdict){
+        let size=null;
+        if(bdict['size']) size=NumberArray(bdict['size']);
         super(tblock,{'codeType':bdict['codeType']});   //自身只取 codeType
         let vi=this;
         this.teImage=new Image(tblock,bdict);
         this.teImage.addEvent('onload',()=>{
-            vi.setSize(vi.teImage.size);
-            console.log('載入後大小:',vi.teImage.size);
+            if(size==null)
+                vi.setSize(vi.teImage.size);
+            else vi.setSize(size);
+            //console.log('載入後大小:',vi.teImage.size);
         });
         this.varName=new VarName(tblock,{
             'varname':bdict['varname']+'',
@@ -469,7 +557,7 @@ class CTModel extends DemoModel{
         //--------------------------------------tblock 事件
         let tblock=this.nowtblock;
         //--------------------------------------- 屬性變更框
-        tcontrol.newSelectionBox('epcode',[
+        tcontrol.newSelectionBox('epcode',['epcode','varname'],[
             ['label','w:',[5,5]],
             ['select',[1,2,3,4,5,6,7],[28,5],(teObj)=>{return teObj.scale[0];},(teObj,value)=>{
                 teObj.setDict({'scale':value+','+teObj.scale[1]});
@@ -488,7 +576,11 @@ class CTModel extends DemoModel{
         ],[125,60]);
         //tblock.setSelectionBox('epcode');
         tblock.addEvent('selectup',(event)=>{
-            tcontrol.showSelectionBox('epcode',event);
+            let index=tblock.selecting[1]-1;
+            if(tblock.selecting[0]>tblock.selecting[1]) index=tblock.selecting[1];
+            console.log('index:',index);
+            console.log('length:',tblock.relObjs.length);
+            tcontrol.showSelectionBox('epcode',tblock.relObjs[index]);
         });
     }
     insertCodeLine(){
@@ -504,6 +596,8 @@ Object.assign(TElementRegistry,{
     'epcode':[EpCode,'char'],
     'varname':[VarName,null],
     'codeline':[CodeLine,null],
+    'limitblock':[LimitBlock,null],
+    'cutline':[CutLine,null],
     'forloop':[ForLoop,null],
     'varimage':[VarImage,'src']
 });

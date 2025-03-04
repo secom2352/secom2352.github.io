@@ -721,7 +721,7 @@ export class TBlock{          //內部描述區塊
     }
     //==================================================================輸入
     inputTElements(telement_bdicts){
-        this.addObjs(telement_bdicts);
+        return this.addObjs(telement_bdicts);
     }
     inputText(text=''){
         for(let i=0;i<text.length;i++){
@@ -746,7 +746,7 @@ export class TBlock{          //內部描述區塊
         this.changeLine();
     }
     insertRectIBox(){         //插入方形輸入框
-        this.addObj({'type':'rectibox'});
+        return this.addObj({'type':'rectibox'});
     }
 
     //================================================================== 取得值

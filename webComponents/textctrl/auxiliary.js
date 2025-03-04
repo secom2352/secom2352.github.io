@@ -1,10 +1,10 @@
 import {Button, defaultStyle, Label, Panel, Select} from "../ui/base.js";
 
 class SelectionBox extends Panel{
-    constructor(tcontrol,monitorType,size,_style=null){
+    constructor(tcontrol,monitorTypesArray,size,_style=null){
         super(tcontrol.parent,null,size,_style);
         this.tcontrol=tcontrol;
-        this.monitorType=monitorType;
+        this.monitorTypesArray=monitorTypesArray;
         this.monitorFuncs=[];
         this.nowTeObjs=[];
     }
@@ -12,6 +12,7 @@ class SelectionBox extends Panel{
         for(let i=0;i<describeList.length;i++){
             //[base_class, label, pos, 監控函數(telement)=>{return true、false、值}, 變更函數(telement,value)=>{}]
             let db=describeList[i];
+            
             switch (db[0]){
                 case 'label':
                     let label=new Label(this,db[1],db[2]);
@@ -19,8 +20,12 @@ class SelectionBox extends Panel{
                 case 'btn':
                     let btn=new Button(this,db[1],(event)=>{
                         let isTrue=btn._style['background-color']=='#cccccc';
+                        let updateFunc=(teObj)=>{
+                            db[4](teObj,!isTrue);
+                        }
                         for(let i=0;i<this.nowTeObjs.length;i++){
-                            db[4](this.nowTeObjs[i],!isTrue);
+                            this.nowTeObjs[i].updateByFunc(updateFunc);
+                            //db[4](this.nowTeObjs[i],!isTrue);
                         }
                         this.tcontrol.nowtblock.arrange();
                         if(isTrue) btn.setBg('transparent');
@@ -30,8 +35,12 @@ class SelectionBox extends Panel{
                     break;
                 case 'select':
                     let select=new Select(this,db[1],(value)=>{
+                        let updateFunc=(teObj)=>{
+                            db[4](teObj,value);
+                        }
                         for(let i=0;i<this.nowTeObjs.length;i++){
-                            db[4](this.nowTeObjs[i],value);
+                            this.nowTeObjs[i].updateByFunc(updateFunc);
+                            //db[4](this.nowTeObjs[i],value);
                         }
                         this.tcontrol.nowtblock.arrange();
                     },db[2]);
@@ -45,7 +54,7 @@ class SelectionBox extends Panel{
         this.nowTeObjs=[];
         let relObjs=this.tcontrol.nowtblock.getSelection();
         for(let i=0;i<relObjs.length;i++){
-            if(relObjs[i].type==this.monitorType) this.nowTeObjs.push(relObjs[i]);
+            if(this.monitorTypesArray.includes(relObjs[i].type)) this.nowTeObjs.push(relObjs[i]);
         }
         //--------------------------------------------------------
         super.show();
@@ -55,8 +64,13 @@ class SelectionBox extends Panel{
             let value=null;    // null 代表沒有特定值
             for(let i=0;i<this.nowTeObjs.length;i++){
                 let teObj=this.nowTeObjs[i];
-                if(value==null) value=mf[1](teObj);
-                else if (value!=mf[1](teObj)){
+                //---------------------------------
+                let value2=null;
+                try{value2=mf[1](teObj);
+                }catch(e){}
+                //----------------------------------
+                if(value==null) value=value2;
+                else if (value!=value2){
                     value=null;
                     break;
                 }
@@ -77,22 +91,24 @@ export class SbControl{
         this.tcontrol=tcontrol;
         this.sbs={};
     }
-    newSelectionBox(dealType,describeList,size,_style=null){
-        if(this.sbs[dealType]) return null;
+    newSelectionBox(sbName,dealTypesArray,describeList,size,_style=null){
+        if(this.sbs[sbName]) return null;
         _style=defaultStyle(_style,{'cursor':'context-menu','background-color':'white',
             'padding':'2px','border':'1px solid','border-radius':'5px','z-index':'1'});
-        let sb=new SelectionBox(this.tcontrol,dealType,size,_style);
+        let sb=new SelectionBox(this.tcontrol,dealTypesArray,size,_style);
         sb.deploy(describeList);
         sb.setHover({'opacity':'1'});
         sb.hide();
         //----------------------------------------
-        this.sbs[dealType]=sb;
+        this.sbs[sbName]=sb;
         return sb;
     }
-    showSelectionBox(dealType,event){
-        let sb=this.sbs[dealType];
-        sb.setAbsPos([Math.max(Math.min(event.clientX-sb.size[0]/3,screen.width-sb.size[0]),20),
-                         Math.min(event.clientY+20,screen.height-sb.size[1])]);
+    showSelectionBox(sbName,telement){
+        let sb=this.sbs[sbName];
+        //sb.setAbsPos([Math.max(Math.min(event.clientX-sb.size[0]/3,screen.width-sb.size[0]),20),
+          //               Math.min(event.clientY+20,screen.height-sb.size[1])]);
+        let absPos=telement.getAbsPos();
+        sb.setAbsPos([absPos[0],absPos[1]+telement.size[1]]);
         sb.show();
         sb.setAlpha(0.2);
         //for(let i=0;i<panel.children.length;i++){

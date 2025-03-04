@@ -217,9 +217,10 @@ export class DemoModel extends RectModel{       //一個用於展示各種 TMode
         tcontrol.addMenu(0,'demo_insert',[
             ['貼上',function (event){tmodel.nowtblock.paste();}],
             ['插入圖片',function (event){imgModal.launch();}],
-            //['文字方塊',function (event){
-            //    tmodel.nowtblock.insertRectIBox();
+            //['限制方塊',function (event){
+            //    let iRectBox=tmodel.nowtblock.insertRectIBox();
             //    tmodel.nowtblock.arrange();
+            //    tcontrol.tetfr.transformTElement(iRectBox);
             //}],
         //    ['插入表格',function (event){tmodel.insert_table(5,5);}],
         //    ['屬性&ensp;&ensp;▶','file']
@@ -320,7 +321,7 @@ export class TModelTElement extends TElement{         //用 TElement 包裝 [一
         this.tmObj.select(is_selected);
     }
     render(){  //在 tmodel 設定 pos 時，就已經排列並渲染好了
-        
+        this.tmObj.renderData();
     }
     //-----------------------------------------------------------------
     loadTmString(tmString=null){
@@ -336,12 +337,28 @@ export class TModelTElement extends TElement{         //用 TElement 包裝 [一
     }
 }
 export class RectIBox extends TModelTElement{     //---------------------------方形輸入框元素
-    constructor(tblock,bdict){
+    constructor(tblock,bdict,tmodel_class=null){
         // tmodel 屬性
-        bdict=defaultDict(bdict,{'size':'50,30','padding':'5,5','background':'yellow','border':'0'});
-        super(tblock,bdict,RectModel);
+        bdict=defaultDict(bdict,{'size':'50,30','padding':'2,0','background':'white','border':'1'});
+        //bdict['autoFitSize']='0';
+        if(tmodel_class==null) tmodel_class=RectModel;
+        super(tblock,bdict,tmodel_class);
+        this.resizeLock=false;
         //------------------------------------------------------ 基本參數
         this.nowtblock=this.tmObj.nowtblock;
+    }
+    setSize(size){
+        if(!this.resizeLock){
+            this.resizeLock=true;
+            if(this.nowtblock.relObjs.length==0){
+                let lineHeight=this.nowtblock.lineHeight;
+                let padding=NumberArray(this.bdict['padding']);
+                super.setSize([size[0],lineHeight+padding[1]*2]);
+                let rectBlock=[padding[0],padding[1],size[0]-padding[0]*2,lineHeight];
+                this.nowtblock.setBlock(rectBlock);
+            }else super.setSize(size);
+            this.resizeLock=false;
+        }
     }
 }
 export class TextIBox extends TModelTElement{           // [單行]文字輸入框

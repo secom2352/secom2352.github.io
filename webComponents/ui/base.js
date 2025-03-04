@@ -518,6 +518,7 @@ export class Canvas extends Base{
         ctx.strokeStyle =color;
         ctx.lineWidth = lineWidth;
         if(lineDash!=null) ctx.setLineDash(lineDash); // 設定 [線段長度, 間距]
+        else ctx.setLineDash([]);
         ctx.beginPath();
         ctx.moveTo(pos1[0]*pd,pos1[1]*pd);
         ctx.lineTo(pos2[0]*pd,pos2[1]*pd);

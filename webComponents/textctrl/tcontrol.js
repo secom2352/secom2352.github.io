@@ -113,11 +113,11 @@ export class TControl extends Panel{
         this.tetfr.hide();
         this.sbc.hide();
     }
-    newSelectionBox(dealType,describeList,size,_style=null){
-        return this.sbc.newSelectionBox(dealType,describeList,size,_style);
+    newSelectionBox(sbName,dealTypesArray,describeList,size,_style=null){
+        return this.sbc.newSelectionBox(sbName,dealTypesArray,describeList,size,_style);
     }
-    showSelectionBox(dealType,event){
-        this.sbc.showSelectionBox(dealType,event);
+    showSelectionBox(dealType,telement){
+        this.sbc.showSelectionBox(dealType,telement);
     }
     //-----------------------------------------------------custmenu修改
     addMenu(layer,menu_name,paramsList,_style=null){
@@ -164,8 +164,10 @@ export class TControl extends Panel{
     //=================================================================================外接操作(視為真實操作)
     //----------------------------------------------------- 輸入內容
     inputTElements(telement_bdicts){
+        //console.log('插入前:',this.nowtblock.relObjs.slice());
         this.nowtblock.inputTElements(telement_bdicts);
         this.nowtblock.arrange();
+        //console.log('插入後:',this.nowtblock.relObjs);
     }
     inputText(text){
         this.nowtblock.inputText(text);

@@ -174,6 +174,9 @@ export class TElement{
         this.is_selected=is_selected;
     }
     //-----------------------------------------------------------------------自身建構字典
+    updateByFunc(updateFunc){    //利用某函數更新自身
+        updateFunc(this);
+    }
     setDict(_dict=null){
         if(_dict!=null) Object.assign(this.bdict,_dict);
     }
@@ -291,7 +294,6 @@ export class Br extends TElement{
 
 export class Image extends TElement{
     constructor(tblock,bdict=null){
-        console.log('image取得:',bdict);
         super(tblock,bdict);
         let image=this;
         //-------------------------------------基本參數
