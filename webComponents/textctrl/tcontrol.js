@@ -29,6 +29,7 @@ class TeTransFormer extends TransFormer{
 
     }
     hide(){
+        console.log('被隱藏');
         super.hide();
         this.nowTElement=null;
     }
@@ -129,7 +130,7 @@ export class TControl extends Panel{
         let t=performance.now();
         let mtmodel=this.mtmodel;
         if(mtmodel && t>this.renderTime){
-            this.hideAuxiliary();
+            //this.hideAuxiliary();
             //console.log('tcontrol 呼叫渲染');
             mtmodel.renderData();
             setTimeout(()=>{

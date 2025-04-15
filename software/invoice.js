@@ -125,6 +125,12 @@ export function Invoice(api=null,params=null){
         ['1.5x',(event)=>{setInvoiceZoom(1.5)}],
         ['2.0x',(event)=>{setInvoiceZoom(2)}],
         ['2.5x',(event)=>{setInvoiceZoom(2.5)}],
+        ['實際',(event)=>{setInvoiceZoom(1/tctrl.mtmodel.devicePixelRatio*0.8);}],
+        ['自訂',(event)=>{
+            let v=prompt('自訂縮放',tctrl.zoomRate+'');
+            if (!isNaN(v))
+                setInvoiceZoom(parseFloat(v))
+        }],
     ]);
     nav.add_item(project_btn,'left');
     //--------------------------頁面縮放
@@ -530,6 +536,17 @@ class VarImage extends TElement{
         this.bdict['size']=size[0]+','+size[1];
         super.setSize(size);
         this.teImage.setSize(size);
+    }
+    transform(transformDict){
+        if(this.bdict['codeType']=='QR code'){
+            let size=transformDict['size'];
+            let offsetSize=[size[0]-this.size[0],size[1]-this.size[1]];
+            if(offsetSize[0]!=0) size[1]=size[0];
+            else size[0]=size[1];
+            let maxWidth=this.tblock.getLineWidth(this.pos);
+            if(size[0]>maxWidth) size=[maxWidth,maxWidth];
+            this.setSize(size);
+        }else super.transform(transformDict);
     }
     render(){
         this.teImage.render();

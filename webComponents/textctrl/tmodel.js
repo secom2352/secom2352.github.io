@@ -76,7 +76,7 @@ export class TModel extends Canvas{         //這是任意形狀的 TModel
     getDisplayRect(){                 //目前能看見的區域
         let apos=this.getScreenPos();
         let y=-apos[1]/this.tcontrol.zoomRate-200
-        return [0,y,this.size[0],screen.height+400];
+        return [0,y,this.size[0],screen.height+1000];
     }
     setPos(pos){      //當自身座標被移動時，重新排列並渲染自身
         super.setPos(pos);

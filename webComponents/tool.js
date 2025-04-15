@@ -21,10 +21,28 @@ export function fillMissingKeys(dict=null,keyDict=null){           //將 dict �
     }
     return dict;
 }
-export function fetchDict(sourceDict,keyArray){
+export function fetchDict(sourceDict,keyArray){                     //從字典中挑出幾個特定key組成的字典
     let _dict={};
-    for(let i=0;i<keyArray.length;i++) _dict[keyArray[i]]=sourceDict[keyArray[i]];
+    for(let i=0;i<keyArray.length;i++){
+        let value=sourceDict[keyArray[i]];
+        if(value) _dict[keyArray[i]]=value;
+    }
     return _dict;
+}
+export function keysInDict(dict,keysArray) {         //判斷 dict 是否包含 keysArray 中的任意值
+    for (const key of keysArray){
+        if (key in dict) return true;
+    }
+    return false;
+}
+export function splitDict(dict,splitArray){    //回傳 [不包含splitArray的字典,包含splitArray的字典]
+    let dict1={};
+    let dict2={};
+    for(const [key, value] of Object.entries(dict)){
+        if(splitArray.includes(key)) dict2[key]=value;
+        else dict1[key]=value;
+    }
+    return [dict1,dict2];
 }
 //===============================================================================================儲存格式轉換
 //--------------------------------------------------------------- 陣列 & 字串
@@ -220,7 +238,7 @@ export function getabsrect(htmlElement){
 export function inRect(rect,Rect){
     return rect[0]+rect[2]>Rect[0] && Rect[0]+Rect[2]>rect[0] && rect[1]+rect[3]>Rect[1] && Rect[1]+Rect[3]>rect[1];
 }
-//---------------------------------------------------------------檔案處理
+//--------------------------------------------------------------- 檔案處理
 var utf8Encode = new TextEncoder();
 export function utf8encode(text){
     return utf8Encode.encode(text);
@@ -264,3 +282,100 @@ export function uploadFile(callback,acceptlist=null){
     // 釋放 URL 對象
     URL.revokeObjectURL(url);
   }
+//--------------------------------------------------------------- html字串解析
+export function parseStyleString(styleString) {
+    if(styleString==undefined) return {};
+    let _style = {};
+    styleString.split(';').forEach(pair => {
+        let [attr, value] = pair.split(':');
+        if (attr && value)
+            _style[attr.trim()] = value.trim(); //去除頭尾空格，中間空格不去除，否則會影響樣式
+    });
+    return _style;
+}
+export function parseHTML(htmlCode){
+    let objs = [];            //[[tag,attrs],[null,文字內容],...]
+    let content_start=0;      
+    let k=0;
+    const n=htmlCode.length;
+    while (k<n){
+        if (htmlCode[k]=='<'){
+            let content=htmlCode.substring(content_start,k).replace('\r','').replace('\n','').strip(' ');
+            if (content.length>0) objs.push([null,content]);
+            //----------------------------------------取得tag
+            k++;
+            while (htmlCode[k]==' ') k++;
+            let p=k;
+            while (htmlCode[k]!=' >') k++;
+            let tag=htmlCode.substring(p,k).strip('\n');
+            //----------------------------------------取得tag屬性
+            let attr={}  //String:String
+            while (htmlCode[k]!='>'){
+                if (!' \r\n'.includes(htmlCode[k])){
+                    //-------------------------------取得屬性name
+                    let p=k
+                    while (!'= >'.includes(htmlCode[k])) k++;
+                    let name=htmlCode.substring(p,k);
+                    //-------------------------------取得屬性value
+                    while (htmlCode[k]==' ') k++;
+                    if (htmlCode[k]=='='){
+                        k++;
+                        while (htmlCode[k]==' ') k++;
+                        p=k;
+                        let br=htmlCode[k];
+                        k++;
+                        while (htmlCode[k] != br) k++;
+                        attr[name]=htmlCode.substring(p+1,k);
+                    }else{
+                        k--;
+                        attr[name]='';
+                    }
+                }
+                k++;
+            }
+            objs.push([tag,attr]);
+            content_start=k+1;
+        }
+        k++;
+    }
+    let content = htmlCode.substring(content_start,k);
+    if (content.length> 0) objs.push([None, content]);
+    //-----------------------------------------------------------轉化為 bdict 陣列
+    let children=[[],[]];             //－↘
+    let attrs= [null, {}    ];        //－→一樣長
+    let tags = [null,'$XMLEND'];      //－↗
+    objs.psuh(['/$XMLEND',{}]);
+    for(let i=0;i<objs.length;i++){
+        let obj=objs[i];
+        if (obj[0]==null)
+            children[children.length-1].push(obj[1]);
+        else{   //obj[0] 為string
+            let tag=obj[0];
+            if (tag.length>0){
+                if (tag[0]=='/'){
+                    tag=tag.slice(1);
+                    if (tags.includes(tag)){
+                        let collect=[];
+                        while (tags[tags.length-1]!=tag){   //中間不成對的當成單元速處理
+                            collect.push({'tag':tags[-1],'attrs':attrs[-1],'children':[],'single':true});   //不成對元素
+                            collect+=children[-1]
+                            //del children[-1]
+                            //del attrs[-1]
+                            //del tags[-1]
+                        }
+                        children[-1]+=collect
+                        children[-2].append(XmlObj(tags[-1],attrs[-1],children[-1]))
+                        //del children[-1]
+                        //del attrs[-1]
+                        //del tags[-1]
+                    }
+                }else{
+                    tags.append(tag)
+                    attrs.append(obj[1])
+                    children.append([]);
+                }
+            }
+        }
+    }
+    return children;
+}
