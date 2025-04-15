@@ -127,9 +127,8 @@ export function Invoice(api=null,params=null){
         ['2.5x',(event)=>{setInvoiceZoom(2.5)}],
         ['實際',(event)=>{setInvoiceZoom(1/tctrl.mtmodel.devicePixelRatio*0.8);}],
         ['自訂',(event)=>{
-            let v=prompt('自訂縮放',tctrl.zoomRate+'');
-            if (!isNaN(v))
-                setInvoiceZoom(parseFloat(v))
+            let v=parseFloat(prompt('自訂縮放',tctrl.zoomRate+''));
+            if (!isNaN(v)) setInvoiceZoom(v);
         }],
     ]);
     nav.add_item(project_btn,'left');
