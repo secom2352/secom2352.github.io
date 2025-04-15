@@ -216,7 +216,7 @@ export function Invoice(api=null,params=null){
             ['變數',function (event){insert_var();}],
             //['插入代碼行',function (event){tctrl.nowtmodel.insertCodeLine();}],
             ['條碼',function (event){insert_var_image('image/barcode.png',172,70,'barcode');}],
-            ['QR code',function (event){insert_var_image('image/hello_world.png',200,200,'QR code')}]
+            ['QR code',function (event){insert_var_image('image/hello_world.png',125,125,'QR code')}]
         ]);
         dragTube.add_item(common_var);
         //-------------------------------------------------------------對齊
@@ -520,6 +520,8 @@ class VarImage extends TElement{
             this.teImage.destroy();
             this.varName.destroy();
         });
+        //--------------------- 用以顯示縮放文字
+        this.fontkey=this.tmodel.getFontkey(60,'Fira Code');
     }
     select(is_selected){
         this.teImage.select(is_selected);
@@ -549,7 +551,15 @@ class VarImage extends TElement{
     }
     render(){
         this.teImage.render();
+        //------------------------------------ 塗文字
+        //let tmodel=this.teImage.tmodel;
+        //let rect=this.getrect();
+        //let textWidth=tmodel.getCharWidth(this.size[0]+'',this.fontkey);
+        //tmodel.setTextStyle(this.fontkey,'white');
+        //tmodel.drawText(this.size[0],[rect[0]+(rect[2]-textWidth)/2,rect[1]+(rect[3]-60)/2]);
+        //-------------------------------------
         this.varName.render();
+
     }
     getDict(){
         let bdict=this.teImage.getDict();
