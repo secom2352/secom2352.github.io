@@ -699,7 +699,7 @@ export class TBlock{          //內部描述區塊
         pastedData=pastedData.replace(/\r/g,'');
         let copy_string=this.tcontrol.copy_string;
         if(pastedData==copy_string){
-            console.log('符合');
+            //console.log('符合');
             this.inputTeString(this.tcontrol.copyTeString);
         }else this.inputText(pastedData);
         this.ashow_inp();

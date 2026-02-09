@@ -506,10 +506,17 @@ export class Canvas extends Base{
         if(this.bgcolor!=null) this.drawRect(rect,this.bgcolor);
         else this.ctx.clearRect(rect[0]*pd,rect[1]*pd,rect[2]*pd,rect[3]*pd);
     }
-    drawRect(rect,color=null){    //實際 rect ，非畫布 rect
-        if(color!=null) this.ctx.fillStyle=color;
+    drawRect(rect,color=null,linewidth=null){    //實際 rect ，非畫布 rect， linewidth為 null 時，為 邊框矩形
         let pd=this.pd;
-        this.ctx.fillRect(rect[0]*pd,rect[1]*pd,rect[2]*pd,rect[3]*pd);
+        if (linewidth==null){
+            if(color!=null) this.ctx.fillStyle=color;
+            this.ctx.fillRect(rect[0]*pd,rect[1]*pd,rect[2]*pd,rect[3]*pd);
+        }else{
+            if(color!=null) this.ctx.strokeStyle = color; // 邊框顏色
+            this.ctx.lineWidth = linewidth;           // 邊框粗細
+            this.ctx.strokeRect(rect[0]*pd,rect[1]*pd,rect[2]*pd,rect[3]*pd);
+            this.ctx.strokeStyle = null;         // 清除邊框顏色
+        }
     }
     //-------------------------------------------------------------------------------------線條
     drawLine(pos1,pos2,color,lineWidth=2,lineDash=null){
@@ -523,12 +530,19 @@ export class Canvas extends Base{
         ctx.moveTo(pos1[0]*pd,pos1[1]*pd);
         ctx.lineTo(pos2[0]*pd,pos2[1]*pd);
         ctx.stroke();
+        if(lineDash!=null) ctx.setLineDash([]);       // 清除虛線設定
     }
     //-------------------------------------------------------------------------------------文字
     getCharWidth(char,fontkey){
         this.setFont(fontkey);
         return this.ctx.measureText(char).width;
     }
+    //getTextWidth(text,fontkey){
+    //    this.setFont(fontkey);
+    //    let k=0;
+    //    for (let i=0;i<text.length;i++) k+=this.ctx.measureText(text[i]).width;
+    //    return k;
+    //}
     getFontkey(fontHeight,fontFamily,bold='0'){  //返回 字體高度,fontFamily組合的 key
         if(bold=='0')
             return fontHeight+'_'+fontFamily;

@@ -187,9 +187,41 @@ export function Invoice(api=null,params=null){
             //['時間格式',function (event){}],
             ['圖形&ensp;&ensp;▶','graphics'],
             ['裁切&ensp;&ensp;▶','cut_invoice'],
+            ['蜂鳴器',function (event){
+                function get_int(hint,default_input){
+                    let i=prompt(hint, default_input);
+                    if (i!=null){
+                        if (/^-?\d+$/.test(i.trim())){
+                            let test_i=parseInt(i,10);
+                            if (test_i>9){alert('請輸入<10的數值');}
+                            else if (test_i<1){alert('請輸入>0的數值');}
+                            else{return i}
+                        }else{alert('請輸入整數');}
+                    }return null;
+                }
+                let times=get_int('蜂鳴器播放次數:', '2');
+                if (times!=null){
+                    let interval=get_int('每段聲音持續時間:(單位:100ms)',2);
+                    if (interval!=null){
+                        tctrl.nowtblock.addObj({'type':'buzzer','interval':interval,'times':times});
+                        tctrl.nowtblock.arrange();
+                    }
+                }
+            }]
         ]);
         system_vars.addMenu(1,'graphics',[
-            ['文字虛線',function(event){tctrl.inputText('----------');}],
+            ['文字虛線(單)',function(event){
+                tctrl.nowtblock.changeLine();
+                if (tctrl.esc_width==57){tctrl.inputText('--------------------------------');}
+                else{tctrl.inputText('------------------------------------------------');}
+                tctrl.nowtblock.changeLine();
+            }],
+            ['文字虛線(雙)',function(event){
+                tctrl.nowtblock.changeLine();
+                if (tctrl.esc_width==57){tctrl.inputText('================================');}
+                else{tctrl.inputText('================================================');}
+                tctrl.nowtblock.changeLine();
+            }],
             ['水平線(細)',function(event){tctrl.setHrLine(1);}],
             ['水平線(中)',function(event){tctrl.setHrLine(2);}],
             ['水平線(粗)',function(event){tctrl.setHrLine(4);}],
@@ -315,6 +347,47 @@ class CutLine extends HrLine{
             tmodel.drawLine([0,y],[this.tmodel.size[0],y],'red',lineHeight,[15,5]);
         else
             tmodel.drawLine([0,y],[this.tmodel.size[0],y],'red',lineHeight);
+    }
+}
+class Buzzer extends TElement{
+    constructor(tblock,bdict=null){   // {'interval':int,times:int}
+        if(bdict==null) bdict={};
+        super(tblock,bdict);
+        let size=[120,30];
+        this.size=size;
+        //-------------------------------------------------------建構輸入方塊
+        let buzzer=this;
+        this.buzzer_image=new Image(tblock,{'src':'./image/bell.png','size':'25,25'});
+        this.font=tblock.tmodel.getFontkey(20,'Fira Code');
+        //-------------------------------------------------------載入資料
+        this.addEvent('destroy',()=>{
+            buzzer.buzzer_image.destroy();
+        });
+    }
+    select(is_selected){
+        super.select(is_selected);
+        this.buzzer_image.select(is_selected);
+    }
+    setPos(pos){
+        super.setPos(pos);
+        let rect=this.getDisplayRect();
+        //-------------------------------------------------------------定位輸入框
+        let relPos=getRelPos(this.tmodel.tcontrol,this.tmodel);
+        this.buzzer_image.setPos([relPos[0]+rect[0],relPos[1]+rect[1]]);
+    }
+    setSize(size){}
+    render(){
+        let tmodel=this.tmodel;
+        let rect=this.getDisplayRect();
+        //-------------------------------------背景色
+        if(this.is_selected) tmodel.drawRect(rect,'lightblue');
+        else tmodel.drawRect(rect,'gray',1);
+        tmodel.setTextStyle(this.font,'#555555');
+        tmodel.drawText(':'+(parseInt(this.bdict['interval'],10)*100)+'ms ×'+this.bdict['times'],[rect[0]+26,rect[1]+20]);
+        this.buzzer_image.render();
+    }
+    getDisplayRect(){
+        return [this.pos[0],this.pos[1],120,30];
     }
 }
 class ForLoop extends TElement{
@@ -522,6 +595,7 @@ class VarImage extends TElement{
         });
         //--------------------- 用以顯示縮放文字
         this.fontkey=this.tmodel.getFontkey(60,'Fira Code');
+        this.qrTransforming=false;
     }
     select(is_selected){
         this.teImage.select(is_selected);
@@ -540,23 +614,35 @@ class VarImage extends TElement{
     }
     transform(transformDict){
         if(this.bdict['codeType']=='QR code'){
+            this.qrTransforming=true;
             let size=transformDict['size'];
             let offsetSize=[size[0]-this.size[0],size[1]-this.size[1]];
             if(offsetSize[0]!=0) size[1]=size[0];
             else size[0]=size[1];
             let maxWidth=this.tblock.getLineWidth(this.pos);
             if(size[0]>maxWidth) size=[maxWidth,maxWidth];
+            else if(size[0]<80) size=[80,80];
             this.setSize(size);
         }else super.transform(transformDict);
+    }
+    transformup(){
+        this.qrTransforming=false;
     }
     render(){
         this.teImage.render();
         //------------------------------------ 塗文字
-        //let tmodel=this.teImage.tmodel;
-        //let rect=this.getrect();
-        //let textWidth=tmodel.getCharWidth(this.size[0]+'',this.fontkey);
-        //tmodel.setTextStyle(this.fontkey,'white');
-        //tmodel.drawText(this.size[0],[rect[0]+(rect[2]-textWidth)/2,rect[1]+(rect[3]-60)/2]);
+        //if(this.qrTransforming){
+        //    let tmodel=this.teImage.tmodel;
+        //    let text=parseInt(this.size[0])+'';
+        //    let textWidth=tmodel.getCharWidth(text,this.fontkey)/tmodel.devicePixelRatio;
+        //    let textRect=[
+        //        this.pos[0]+(this.size[0]-textWidth)/2,this.pos[1]+(this.size[1]-45)/2,
+        //        textWidth,60/tmodel.devicePixelRatio
+        //    ];
+        //    tmodel.drawRect([textRect[0]-4,textRect[1]-4,textRect[2]+8,textRect[3]+8],'rgba(0, 0, 0, 0.3)');
+        //    tmodel.setTextStyle(this.fontkey,'rgba(255, 0, 0, 1)');
+        //    tmodel.drawText(text,[textRect[0],textRect[1]+textRect[3]]);
+        //}
         //-------------------------------------
         this.varName.render();
 
@@ -604,8 +690,8 @@ class CTModel extends DemoModel{
         tblock.addEvent('selectup',(event)=>{
             let index=tblock.selecting[1]-1;
             if(tblock.selecting[0]>tblock.selecting[1]) index=tblock.selecting[1];
-            console.log('index:',index);
-            console.log('length:',tblock.relObjs.length);
+            //console.log('index:',index);
+            //console.log('length:',tblock.relObjs.length);
             tcontrol.showSelectionBox('epcode',tblock.relObjs[index]);
         });
     }
@@ -624,6 +710,7 @@ Object.assign(TElementRegistry,{
     'codeline':[CodeLine,null],
     'limitblock':[LimitBlock,null],
     'cutline':[CutLine,null],
+    'buzzer':[Buzzer,null],
     'forloop':[ForLoop,null],
     'varimage':[VarImage,'src']
 });

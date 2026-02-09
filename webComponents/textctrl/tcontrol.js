@@ -29,7 +29,7 @@ class TeTransFormer extends TransFormer{
 
     }
     hide(){
-        console.log('被隱藏');
+        //console.log('被隱藏');
         super.hide();
         this.nowTElement=null;
     }
@@ -126,7 +126,7 @@ export class TControl extends Panel{
     }
     //================================================================================= 顯示畫布(不排列)
     renderData(){
-        console.log('滾動了');
+        //console.log('滾動了');
         let t=performance.now();
         let mtmodel=this.mtmodel;
         if(mtmodel && t>this.renderTime){
