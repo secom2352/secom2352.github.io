@@ -230,33 +230,34 @@ export class DemoModel extends RectModel{       //一個用於展示各種 TMode
             if(img_path!='')
             tcontrol.nowtblock.insertImage(upload_src,{'dsrc':img_path});
         });
-        imgModal.loadHTML(`<input placeholder="輸入圖片網址" style="width:90%;font-size:1rem;" id='textctrl_imgurl'><br/><br/><br/>
-                            <input type="file" id='textctrl_imgupload'><br/><br/>
-                            <label for="textctrl_imgpath">轉碼時讀取位址:</label><input id="textctrl_imgpath" style="font-size:1rem;">`)
+        imgModal.loadHTML(`<input placeholder="網頁預覽圖網址" style="width:90%;font-size:1rem;" id='textctrl_imgurl'><br/><br/><br/>
+                            <!--<input type="file" id='textctrl_imgupload'><br/><br/>-->
+                            <label for="textctrl_imgpath">實際列印時讀取位址(url或local):</label>&ensp;<input id="textctrl_imgpath" style="font-size:1rem;">`)
         let textctrl_imgurl=document.getElementById('textctrl_imgurl');
-        let textctrl_imgupload=document.getElementById('textctrl_imgupload');
+        //let textctrl_imgupload=document.getElementById('textctrl_imgupload');
         let textctrl_imgpath=document.getElementById('textctrl_imgpath');
         textctrl_imgurl.addEventListener('input',function (event){
+            textctrl_imgpath.value=event.value;
             textctrl_imgpath.value=textctrl_imgurl.value;
             upload_src=textctrl_imgurl.value;
         });
         let upload_src='';
-        textctrl_imgupload.addEventListener('change', function(event) {
-            const file = event.target.files[0]; // 获取第一个上传的文件
-            if (file) {
-                textctrl_imgpath.value=file.name;
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                  const preview = document.getElementById('preview');
-                  upload_src = e.target.result; // 将文件内容作为图像来源
-                  preview.style.display = 'block'; // 显示图片
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-        textctrl_imgurl.value='https://allen2352.github.io/speed_test.jpg';
-        textctrl_imgpath.value='https://allen2352.github.io/speed_test.jpg';
-            upload_src='https://allen2352.github.io/speed_test.jpg';
+        //textctrl_imgupload.addEventListener('change', function(event) {
+        //    const file = event.target.files[0]; // 获取第一个上传的文件
+        //    if (file) {
+        //        textctrl_imgpath.value=file.name;
+        //        const reader = new FileReader();
+        //        reader.onload = function(e) {
+        //          const preview = document.getElementById('preview');
+        //          upload_src = e.target.result;
+        //          preview.style.display = 'block';
+        //        };
+        //        reader.readAsDataURL(file);
+        //    }
+        //});
+        //textctrl_imgurl.value='https://allen2352.github.io/speed_test.jpg';
+        //textctrl_imgpath.value='https://allen2352.github.io/speed_test.jpg';
+        upload_src='https://secom2352.github.io/image/image-not-found.png';
         //---------------------------------------------------------------------
         tcontrol.addMenu(1,'file',[
             ['開新檔案',function (event){tcontrol.clear();}],
