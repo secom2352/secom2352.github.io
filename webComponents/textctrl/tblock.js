@@ -347,8 +347,7 @@ export class TBlock{          //內部描述區塊
             }
             if(event.code=='KeyA'){this.select();
             }else if(event.code=='KeyZ'){
-                //if(event.shiftKey) this.forward();
-                //else this.back();
+                if(!event.shiftKey) this.tcontrol.back();
             }
         }
         let br_index;let refer_xObj;

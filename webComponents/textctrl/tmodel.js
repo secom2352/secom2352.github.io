@@ -300,7 +300,7 @@ export class TModelTElement extends TElement{         //用 TElement 包裝 [一
             tmTElement.trigger_event('resize',size);
             tblock.arrange();
         });
-        this.tmObj=tmObj;
+        this.tmObj=tmObj;         // 自身與 tmObj 共用 dict
         this.nowtblock=tmObj.nowtblock;
         //----------------------
         this.addEvent('destroy',()=>{tmObj.destroy();});

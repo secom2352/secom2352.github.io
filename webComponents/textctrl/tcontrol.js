@@ -73,7 +73,22 @@ export class TControl extends Panel{
         frame.addEvent('onmousemove',function (event){onmouse(event)});
         frame.addEvent('onmouseup',function (event){onmouse(event,true);});
         frame.addEvent('scroll',function (event){tcontrol.renderData()});
-        //-----------------------------------------------------------------鍵盤輸入
+        //----------------------------------------------------------------- 歷史紀錄
+        this.history=[];      // 目前準備寫入第幾個歷史內容,歷史內容
+        setInterval(()=>{
+            let t=Date.now();
+            let tcString=tcontrol.ToTcString();
+            if (tcString.length<1000_000){
+                if (tcontrol.history.length==0 || tcString!=tcontrol.history[tcontrol.history.length-1]){
+                    tcontrol.history.push(tcString);
+                    //console.log('紀錄變更:',Date.now()-t,'長度:',tcString.length);
+                    if (tcontrol.history.length>30){
+                        tcontrol.history.shift();
+                    }
+                }
+            }
+        },1000);
+        //----------------------------------------------------------------- 鍵盤輸入
         let inp=new TextInput(this,(event)=>{tcontrol.nowtblock.input(event);},null,[1,10],{
             'background-color':'transparent','outline':'none','border':'transparent','z-index':'1'});
         inp.addEvent('paste',function (event){
@@ -89,7 +104,14 @@ export class TControl extends Panel{
         this.inp=inp;
         
     }
-    //-------------------------------------------縮放
+    //------------------------------------------- 歷史
+    back(){
+        if (this.history.length>1){
+            this.history.pop();
+            this.LoadTcString(this.history[this.history.length-1]);
+        }
+    }
+    //------------------------------------------- 縮放
     zoom(zoomRate){
         this.setScale([zoomRate,zoomRate]);
         this.zoomRate=zoomRate;
@@ -200,7 +222,7 @@ export class TControl extends Panel{
     }
     //----------------------------------------------------- 儲存格式
     getDict(){
-        let tcDict={'mtmodel':this.mtmodel.ToTmString()};
+        let tcDict={'mtmodel':this.mtmodel.ToTmString(),'void':'0000'};   // void: 補足 tcString 長度
         return tcDict;
     }
     loadDict(tcDict){

@@ -294,7 +294,8 @@ class CTControl extends TControl{
         this.esc_width=esc_width;
         this.display_width={57:384,80:576}[esc_width];
         let width=this.display_width+this.padding[0]*2;
-        this.mtmodel.nowtblock.setBlock([this.padding[0],this.padding[1],
+        // 版寬只能是 tblocks[0]，其他 tblock 的寬度不可調整
+        this.mtmodel.tblocks[0].setBlock([this.padding[0],this.padding[1],
             this.display_width,this.mtmodel.size[1]-this.padding[1]*2]);
         this.setWidth(width);
         this.fitTspace();
@@ -324,7 +325,9 @@ class LimitBlock extends RectIBox{
     }
     getDict(){
         let _dict=super.getDict();
-        _dict['content']=this.tmObj.ToTmString();
+        delete _dict['content'];               // 必須清空原本，否則 content 會被 this.tmObj 一起打包
+        let tmString=this.tmObj.ToTmString();  // 這樣才不會打包到先前的 content
+        _dict['content']=tmString;             // 換上新的
         return _dict;
     }
 }
@@ -353,11 +356,11 @@ class Buzzer extends TElement{
     constructor(tblock,bdict=null){   // {'interval':int,times:int}
         if(bdict==null) bdict={};
         super(tblock,bdict);
-        let size=[120,30];
+        let size=[110,24];
         this.size=size;
         //-------------------------------------------------------建構輸入方塊
         let buzzer=this;
-        this.buzzer_image=new Image(tblock,{'src':'./image/bell.png','size':'25,25'});
+        this.buzzer_image=new Image(tblock,{'src':'./image/bell.png','size':'22,22'});
         this.font=tblock.tmodel.getFontkey(20,'Fira Code');
         //-------------------------------------------------------載入資料
         this.addEvent('destroy',()=>{
@@ -373,7 +376,8 @@ class Buzzer extends TElement{
         let rect=this.getDisplayRect();
         //-------------------------------------------------------------定位輸入框
         let relPos=getRelPos(this.tmodel.tcontrol,this.tmodel);
-        this.buzzer_image.setPos([relPos[0]+rect[0],relPos[1]+rect[1]]);
+        this.buzzer_image.setPos([rect[0],rect[1]+1]);
+        //this.buzzer_image.setPos([relPos[0]+rect[0],relPos[1]+rect[1]]);
     }
     setSize(size){}
     render(){
@@ -381,13 +385,13 @@ class Buzzer extends TElement{
         let rect=this.getDisplayRect();
         //-------------------------------------背景色
         if(this.is_selected) tmodel.drawRect(rect,'lightblue');
-        else tmodel.drawRect(rect,'gray',1);
+        else tmodel.drawRect([rect[0],rect[1]+1,rect[2]-1,rect[3]-2],'gray',1);
         tmodel.setTextStyle(this.font,'#555555');
-        tmodel.drawText(':'+(parseInt(this.bdict['interval'],10)*100)+'ms ×'+this.bdict['times'],[rect[0]+26,rect[1]+20]);
+        tmodel.drawText(':'+(parseInt(this.bdict['interval'],10)*100)+'ms ×'+this.bdict['times'],[rect[0]+22,rect[1]+19]);
         this.buzzer_image.render();
     }
     getDisplayRect(){
-        return [this.pos[0],this.pos[1],120,30];
+        return [this.pos[0],this.pos[1],110,24];
     }
 }
 class ForLoop extends TElement{
@@ -402,11 +406,14 @@ class ForLoop extends TElement{
         this.loopArray=new VarModel(tblock.tcontrol,null,null,[100,25]);
 
         let template=new CTModel(tblock.tcontrol,null,null,[tblock.tmodel.size[0],size[1]-40]);
-        tblock.addEvent('setblock',(block)=>{    //跟隨母 tblock 變更大小
+        tblock.addEvent('setblock',(block)=>{    //跟隨母 tblock 變更寬度
             let tpBlock=template.nowtblock.getBlock();
             if(block[2]!=tpBlock[2])
                 template.nowtblock.setBlock([tpBlock[0],tpBlock[1],block[2],tpBlock[3]]);
-            forloop.size=[template.getInnerWidth(),template.size[1]+40];
+        });
+        template.nowtblock.addEvent('setblock',(block)=>{
+            forloop.size=[block[2],block[3]+50];     // 內容尺寸變更影響 forloop 整體
+            tblock.arrange();                        // 外部重排列
         });
         this.template=template;
         this.font=tblock.tmodel.getFontkey(20,'Fira Code');
